@@ -4,7 +4,7 @@
 
   <groupId>com.financials</groupId>
   <artifactId>api</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>1.0</version>
 
   <name>FinancialsAPI</name>
   <url>http://maven.apache.org</url>
@@ -26,6 +26,12 @@
       <groupId>org.springframework.boot</groupId>
     	  <artifactId>spring-boot-starter-web</artifactId>
     	  <version>1.5.7.RELEASE</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.tomcat.embed</groupId>
+          <artifactId>tomcat-embed-websocket</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
   </dependencies>
   <profiles>
