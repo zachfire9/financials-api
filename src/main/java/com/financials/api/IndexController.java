@@ -1,7 +1,5 @@
 package com.financials.api;
 
-import java.util.ArrayList;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class IndexController {
 
-	@RequestMapping(value = "/retirement", method = RequestMethod.POST)
+	@RequestMapping(value = "/", method = RequestMethod.POST)
     public ResponseEntity<Retirement> index(@RequestBody Plan plan) {
 		
 		Retirement retirement = new Retirement(plan);
