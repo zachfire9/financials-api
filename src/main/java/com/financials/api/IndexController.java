@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class IndexController {
 
-	@RequestMapping(value = "/", method = RequestMethod.POST)
+	@RequestMapping(value = "/retirement", method = RequestMethod.POST)
     public ResponseEntity<Retirement> index(@RequestBody Plan plan) {
 		
 		Retirement retirement = new Retirement(plan);
