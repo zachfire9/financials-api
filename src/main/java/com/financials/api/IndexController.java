@@ -18,4 +18,10 @@ public class IndexController {
 		
         return new ResponseEntity<Retirement>(retirement, HttpStatus.OK);
     }
+	
+	@RequestMapping("/status")
+    public String status() {
+		
+        return "Available!";
+    }
 }
