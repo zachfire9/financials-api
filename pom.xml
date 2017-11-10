@@ -5,7 +5,7 @@
   	<groupId>com.financials.api</groupId>
   	<artifactId>FinancialsAPI</artifactId>
   	<version>1.0</version>
-  	<packaging>war</packaging>
+  	<packaging>jar</packaging>
 
   	<name>FinancialsAPI</name>
   	<description>An API for calculating how much money you will have in retirement and how long it will last.</description>
@@ -16,48 +16,18 @@
 		<version>1.4.0.RELEASE</version>
 	</parent>  
   
- 	<dependencies>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-tomcat</artifactId>
-                </exclusion>
-            </exclusions>
-		</dependency>
-        <dependency>
-            <groupId>javax.servlet</groupId>
-            <artifactId>servlet-api</artifactId>
-            <version>2.5</version>
-            <scope>provided</scope>
-        </dependency>
-	</dependencies>
+   <dependencies>
+      <dependency>
+       <groupId>junit</groupId>
+       <artifactId>junit</artifactId>
+       <scope>test</scope>
+     </dependency>
+     <dependency>
+       <groupId>org.springframework.boot</groupId>
+    	   <artifactId>spring-boot-starter-web</artifactId>
+    	 </dependency>
+   </dependencies>
 	<properties>
 		<java.version>1.8</java.version>
 	</properties>
-    <profiles>
-        <profile>
-            <id>openshift</id>
-            <build>
-                <finalName>FinancialsAPI</finalName>
-                <plugins>
-                    <plugin>
-                        <artifactId>maven-war-plugin</artifactId>
-                        <version>2.4</version>
-                        <configuration>
-                            <outputDirectory>webapps</outputDirectory>
-                            <warName>ROOT</warName>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>
