@@ -16,7 +16,7 @@
 		<version>1.4.0.RELEASE</version>
 	</parent>  
   
-   <dependencies>
+    <dependencies>
       <dependency>
        <groupId>junit</groupId>
        <artifactId>junit</artifactId>
@@ -26,8 +26,22 @@
        <groupId>org.springframework.boot</groupId>
     	   <artifactId>spring-boot-starter-web</artifactId>
     	 </dependency>
-   </dependencies>
+    </dependencies>
 	<properties>
 		<java.version>1.8</java.version>
 	</properties>
+    <profiles>
+        <profile>
+            <id>openshift</id>
+            <build>
+                <finalName>FinancialsAPI</finalName>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <version>3.0.2</version>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
