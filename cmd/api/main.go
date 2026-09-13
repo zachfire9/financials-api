@@ -1,30 +1,44 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	"os"
 
+	"github.com/zachfire9/financials-api/internal/config"
+	"github.com/zachfire9/financials-api/internal/financialitems"
 	"github.com/zachfire9/financials-api/internal/httpapi"
 )
 
 func main() {
-	addr := envOrDefault("FINANCIALS_API_ADDR", ":8080")
-
-	server := &http.Server{
-		Addr:    addr,
-		Handler: httpapi.NewHandler(),
+	cfg, err := config.Load(".env")
+	if err != nil {
+		log.Fatalf("load config: %v", err)
 	}
 
-	log.Printf("financials-api listening on %s", addr)
+	repository, err := newFinancialItemsRepository(cfg)
+	if err != nil {
+		log.Fatalf("configure financial items repository: %v", err)
+	}
+
+	server := &http.Server{
+		Addr:    cfg.APIAddr,
+		Handler: httpapi.NewHandlerWithRepository(repository),
+	}
+
+	log.Printf("financials-api listening on %s with %s storage", cfg.APIAddr, cfg.StorageDriver)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server failed: %v", err)
 	}
 }
 
-func envOrDefault(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func newFinancialItemsRepository(cfg config.Config) (financialitems.Repository, error) {
+	switch cfg.StorageDriver {
+	case config.StorageDriverMemory:
+		return financialitems.NewInMemoryRepository(), nil
+	case config.StorageDriverJSON:
+		return financialitems.NewJSONFileRepository(cfg.StoragePath)
+	default:
+		return nil, fmt.Errorf("unsupported storage driver %q", cfg.StorageDriver)
 	}
-	return fallback
 }

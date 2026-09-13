@@ -7,11 +7,12 @@ The first implementation phase focuses on the API skeleton and generic financial
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: financial items HTTP API
+- Current branch focus: local configuration and storage workflow
 - Implemented endpoints: `GET /health` plus `/financial-items` create/list/read/update/delete behavior
-- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, and in-memory repository behavior tests
-- Next planned area: local configuration and storage workflow
-- Runtime/deployment specifics: intentionally omitted from git until they can be represented with placeholders and local-only config files
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, and repository behavior tests
+- Implemented local storage options: process-local memory and gitignored JSON file storage
+- Next planned area: projection planning
+- Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
 
@@ -22,6 +23,26 @@ The first implementation phase focuses on the API skeleton and generic financial
 Requirements:
 
 - Go 1.22+
+
+Local config:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Then edit `.env` for local-only overrides. `.env` and `/data/` are gitignored; keep real machine-specific paths, hostnames, and private financial data out of commits.
+
+Configuration precedence:
+
+1. Process environment variables
+2. Local `.env`
+3. Built-in defaults
+
+Supported config values:
+
+- `FINANCIALS_API_ADDR`: Go `http.Server` bind address, default `:8080`
+- `FINANCIALS_STORAGE_DRIVER`: `memory` or `json`, default `memory`
+- `FINANCIALS_STORAGE_PATH`: required when `FINANCIALS_STORAGE_DRIVER=json`, for example `./data/financial-items.json`
 
 Run tests:
 
@@ -40,6 +61,14 @@ The service listens on `:8080` by default. Override the bind address with `FINAN
 ```powershell
 $env:FINANCIALS_API_ADDR=":8081"; go run ./cmd/api
 ```
+
+To persist local fake/test financial items across restarts with the JSON adapter:
+
+```powershell
+$env:FINANCIALS_STORAGE_DRIVER="json"; $env:FINANCIALS_STORAGE_PATH="./data/financial-items.json"; go run ./cmd/api
+```
+
+Do not commit the generated `/data/financial-items.json` file.
 
 Check the health endpoint:
 

@@ -166,9 +166,9 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 5: Local configuration and storage workflow
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-05-local-config-storage`
+- **Pull Request:** [#5](https://github.com/zachfire9/financials-api/pull/5)
 - Add `.env.example` with placeholders only.
 - Confirm `.env` is ignored.
 - Add the first repository adapter behind an interface.
