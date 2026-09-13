@@ -34,10 +34,10 @@ Start the API locally:
 go run ./cmd/api
 ```
 
-The service listens on `:8080` by default. Override the bind address with `FINANCIALS_API_ADDR`, for example:
+The service listens on `:8080` by default. Override the bind endpoint with `FINANCIALS_API_ENDPOINT`, for example:
 
 ```powershell
-$env:FINANCIALS_API_ADDR=":8081"; go run ./cmd/api
+$env:FINANCIALS_API_ENDPOINT=":8081"; go run ./cmd/api
 ```
 
 Check the health endpoint:

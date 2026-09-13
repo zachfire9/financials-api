@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	addr := envOrDefault("FINANCIALS_API_ADDR", ":8080")
+	addr := envOrDefault("FINANCIALS_API_ENDPOINT", ":8080")
 
 	server := &http.Server{
 		Addr:    addr,
