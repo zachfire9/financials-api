@@ -2,14 +2,15 @@
 
 A local-first personal financial planning API, rebuilt from the old prototype as a Go service.
 
-The first implementation phase focuses on the API skeleton and current-investment tracking. Projection features are intentionally deferred until the investment model and workflow are built out.
+The first implementation phase focuses on the API skeleton and generic financial item tracking. Projection features will build on those configurable inputs once the model and workflow are stable.
 
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: Go API skeleton with health endpoint
+- Current branch focus: generic financial item model, validation, and repository behavior
 - Implemented endpoint: `GET /health`
-- Next planned area: current investment model and storage API
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, and in-memory repository behavior tests
+- Next planned area: financial items HTTP API
 - Runtime/deployment specifics: intentionally omitted from git until they can be represented with placeholders and local-only config files
 
 ## Planning documents
