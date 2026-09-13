@@ -1,35 +1,28 @@
 # Financials API
 
-## Logic
+This repository is being reset from the original prototype into a new API for a local-first personal financial planning application.
 
-- Pass in the request info
-- Loop through every time period, add contribution amount, and apply return rate to current total amount
-- Add inflation to retirement annual spending amount every year
-- Stop when you hit total years before retirement
-- Get the total amount for all the years of each investment
-- Subtract annual spending amount from total while total amount is greater than annual spending amount 
-- Keep track of number of years before depleted
+The previous Spring Boot prototype has been removed on the `docs/reset-api-plan` branch so the rewrite can start from a clean baseline.
 
-## Requests
+## Current status
 
-### Plan
+- Existing application code: removed
+- Current branch purpose: public-safe planning baseline
+- Detailed implementation: not started yet
+- Runtime/deployment specifics: intentionally omitted from git until they can be represented with placeholders and local-only config files
 
-```
-{
-	"yearsBefore": "30",
-	"annualSpending": "30000",
-	"annualInflation": ".03",
-	"returnRate": ".03"
-	"investments": [Investment]
-}
-```
+## Planning documents
 
-### Investment
+- [Local Hosting Plan](docs/local-hosting-plan.md)
 
-```
-{
-	"amount": "1000",
-	"contribution": "200",
-	"returnRate": ".05"
-}
-```
+## Public repo boundaries
+
+This repo is public, so it must not contain:
+
+- Real financial data
+- Secrets, API keys, passwords, or tokens
+- LAN IPs, hostnames, router/firewall details, or machine names
+- Local database paths, backup paths, or user-specific service names
+- Environment-specific production configuration
+
+Use committed examples with placeholders only, and keep real runtime values in ignored local files such as `.env` when implementation begins.
