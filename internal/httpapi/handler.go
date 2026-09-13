@@ -2,7 +2,10 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+
+	"github.com/zachfire9/financials-api/internal/financialitems"
 )
 
 // NewHandler builds the HTTP handler tree for the API.
@@ -10,17 +13,120 @@ import (
 // Keep this package independent from process startup so the same handler can be
 // used by local net/http serving now and an AWS Lambda/API Gateway adapter later.
 func NewHandler() http.Handler {
+	return NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+}
+
+// NewHandlerWithRepository builds the HTTP handler tree with an injected financial item repository.
+func NewHandlerWithRepository(repository financialitems.Repository) http.Handler {
+	api := &apiHandler{financialItems: repository}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handleHealth)
+	mux.HandleFunc("GET /health", api.handleHealth)
+	mux.HandleFunc("GET /financial-items", api.handleFinancialItemsList)
+	mux.HandleFunc("POST /financial-items", api.handleFinancialItemsCreate)
+	mux.HandleFunc("GET /financial-items/{id}", api.handleFinancialItemsGet)
+	mux.HandleFunc("PUT /financial-items/{id}", api.handleFinancialItemsUpdate)
+	mux.HandleFunc("DELETE /financial-items/{id}", api.handleFinancialItemsDelete)
 	return mux
+}
+
+type apiHandler struct {
+	financialItems financialitems.Repository
 }
 
 type healthResponse struct {
 	Status string `json:"status"`
 }
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+func (api *apiHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, healthResponse{Status: "ok"})
+}
+
+func (api *apiHandler) handleFinancialItemsList(w http.ResponseWriter, r *http.Request) {
+	items, err := api.financialItems.List(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (api *apiHandler) handleFinancialItemsCreate(w http.ResponseWriter, r *http.Request) {
+	var request financialitems.CreateFinancialItemRequest
+	if err := decodeJSONBody(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	item, err := api.financialItems.Create(r.Context(), request)
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, item)
+}
+
+func (api *apiHandler) handleFinancialItemsGet(w http.ResponseWriter, r *http.Request) {
+	item, err := api.financialItems.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, item)
+}
+
+func (api *apiHandler) handleFinancialItemsUpdate(w http.ResponseWriter, r *http.Request) {
+	var request financialitems.UpdateFinancialItemRequest
+	if err := decodeJSONBody(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	item, err := api.financialItems.Update(r.Context(), r.PathValue("id"), request)
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, item)
+}
+
+func (api *apiHandler) handleFinancialItemsDelete(w http.ResponseWriter, r *http.Request) {
+	if err := api.financialItems.Delete(r.Context(), r.PathValue("id")); err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func decodeJSONBody(r *http.Request, destination any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(destination)
+}
+
+func writeRepositoryError(w http.ResponseWriter, err error) {
+	var validationError financialitems.ValidationError
+	switch {
+	case errors.Is(err, financialitems.ErrFinancialItemNotFound):
+		writeError(w, http.StatusNotFound, err)
+	case errors.As(err, &validationError):
+		writeError(w, http.StatusBadRequest, err)
+	default:
+		writeError(w, http.StatusInternalServerError, err)
+	}
+}
+
+func writeError(w http.ResponseWriter, statusCode int, err error) {
+	writeJSON(w, statusCode, errorResponse{Error: err.Error()})
 }
 
 func writeJSON(w http.ResponseWriter, statusCode int, body any) {
