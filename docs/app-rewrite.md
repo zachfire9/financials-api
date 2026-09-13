@@ -159,7 +159,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-04-financial-items-api`
-- **Pull Request:** TBD
+- **Pull Request:** [#4](https://github.com/zachfire9/financials-api/pull/4)
 - Wire the financial item repository into `/financial-items` endpoints.
 - Add endpoint tests for create/list/read/update/delete behavior and validation failures.
 - Document example requests/responses with fake data.
