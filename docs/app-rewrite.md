@@ -150,7 +150,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-03-current-investment-model`
-- **Pull Request:** TBD
+- **Pull Request:** [#3](https://github.com/zachfire9/financials-api/pull/3)
 - Define the first investment request/response models.
 - Add deterministic fake investment fixtures.
 - Implement investment validation and repository behavior test-first.
