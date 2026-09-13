@@ -92,9 +92,10 @@ Start with the smallest useful backend contract for configurable financial items
    - `DELETE /financial-items/{id}` if deletion is useful for local cleanup.
    - Tracks fake/example-safe fields first: name, amount, currency, annual return rate in basis points, annual contribution, sort order, and timestamps.
 
-3. Projection placeholder only
-   - Keep projection concepts in the plan, but do not build `POST /projections` until financial item entry/storage is working.
-   - Avoid locking projection request/response shapes before the financial item model settles.
+3. Projection planning
+   - Use financial items as the projection input foundation.
+   - Keep v1 deterministic: whole years, annual compounding, end-of-year contributions, per-item series, and aggregate totals.
+   - See [Projection Planning](projection-planning.md) for proposed request/response shapes and the next staged implementation steps.
 
 4. Example data only
    - Include fake example requests/responses.
@@ -176,12 +177,39 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 6: Projection planning
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-06-projection-planning`
 - **Pull Request:** TBD
 - Use the completed financial item model as the input foundation for projection planning.
 - Define projection request/response shapes after financial item CRUD is working.
-- Create a sibling UI plan against the concrete financial items API first, then extend it for projections when the API contract is ready.
+- Create the staged backend/UI projection plan: Step 7 calculation engine, Step 8 projection API endpoint, and Step 9 sibling UI planning.
+
+### Step 7: Projection calculation engine
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Create projection domain models in `internal/projections`.
+- Implement deterministic whole-year projection calculations test-first.
+- Cover per-item yearly balances, aggregate totals, validation, currency mismatches, negative return assumptions, and rounding behavior.
+
+### Step 8: Projection API endpoint
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add `POST /projections` to the HTTP handler tree.
+- Support repository-backed projections when `items` is omitted.
+- Support caller-supplied hypothetical items without saving them.
+- Document fake/example request and response payloads.
+
+### Step 9: Sibling UI planning
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Create the detailed `financials-ui` plan against the concrete financial items and projection API contracts.
+- Plan a React UI with placeholder-only config, typed API client boundaries, and stale-data handling.
 
 ## Open decisions
 
@@ -190,7 +218,8 @@ Track each step as a living checklist. Each implementation PR should update this
 - Initial financial item fields are set: name, amount, currency, annual return rate basis points, annual contribution, sort order, ID, and timestamps.
 - Whether financial item deletion is needed immediately or whether archive/inactive status is safer.
 - Whether authentication is needed for local-only use, and if so which lightweight mechanism fits best.
-- Projection assumptions, calculation behavior, and `POST /projections` contract after the financial item workflow is built out.
+- Projection v1 request/response shape is proposed in `docs/projection-planning.md`; review open questions before implementation.
+- Projection v1 contribution timing default is end-of-year unless Zach chooses otherwise.
 
 ## Verification expectations
 
