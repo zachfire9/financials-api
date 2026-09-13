@@ -7,9 +7,10 @@ The first implementation phase focuses on the API skeleton and current-investmen
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: Go API skeleton with health endpoint
+- Current branch focus: current investment model, validation, and repository behavior
 - Implemented endpoint: `GET /health`
-- Next planned area: current investment model and storage API
+- Implemented domain pieces: current investment request/response models, validation, deterministic fake fixtures, and in-memory repository behavior tests
+- Next planned area: current investments HTTP API
 - Runtime/deployment specifics: intentionally omitted from git until they can be represented with placeholders and local-only config files
 
 ## Planning documents

@@ -148,8 +148,8 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 3: Current investment model and tests
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-03-current-investment-model`
 - **Pull Request:** TBD
 - Define the first investment request/response models.
 - Add deterministic fake investment fixtures.
