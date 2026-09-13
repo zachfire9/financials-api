@@ -4,7 +4,7 @@
 
 Rebuild the old Financials API/UI pair as a local-first personal financial planning app while keeping the public repositories general-purpose and safe to share.
 
-The API repo should own the core domain model, calculation logic, API contract, and backend deployment shape. The UI repo should consume the API contract once the backend response shapes are stable.
+The API repo should own the core domain model, calculation logic, API contract, and backend deployment shape. The UI repo should also track the cross-repo sequencing so the sibling UI can be rebuilt against the working financial-items API before projection logic is implemented.
 
 ## Guiding principles
 
@@ -13,6 +13,7 @@ The API repo should own the core domain model, calculation logic, API contract, 
 - Commit placeholders and examples only.
 - Prefer a simple local deployment path before adding optional production-grade complexity.
 - Treat API contract design as the foundation for the sibling UI rewrite.
+- Exercise the existing financial-items API through a very small UI before adding projection calculation complexity.
 
 ## Repository split
 
@@ -45,7 +46,7 @@ The UI repo should contain:
 - Public-safe local development instructions
 - Placeholder configuration examples
 
-Detailed UI planning should wait until the API contract is stable enough to avoid rework.
+Repurpose the old Django/Heroku-era UI repo as a lightweight Vite + React + TypeScript single-page app. Start with financial item CRUD only, then add projection screens after the projection API exists. Keep the UI build compatible with static hosting targets such as AWS Amplify by using placeholder environment variables for API base URLs and committing no private runtime values.
 
 ## Recommended backend shape
 
@@ -78,7 +79,7 @@ If the app quickly needs relational querying, reporting across many financial it
 
 ## Initial API scope
 
-Start with the smallest useful backend contract for configurable financial items. Projections should wait until the financial item model and UI workflow are built out.
+Start with the smallest useful backend contract for configurable financial items. The next validation step is a very small UI that exercises those endpoints locally before projection logic is built.
 
 1. Health endpoint
    - `GET /health`
@@ -92,11 +93,18 @@ Start with the smallest useful backend contract for configurable financial items
    - `DELETE /financial-items/{id}` if deletion is useful for local cleanup.
    - Tracks fake/example-safe fields first: name, amount, currency, annual return rate in basis points, annual contribution, sort order, and timestamps.
 
-3. Projection placeholder only
-   - Keep projection concepts in the plan, but do not build `POST /projections` until financial item entry/storage is working.
-   - Avoid locking projection request/response shapes before the financial item model settles.
+3. UI-driven API smoke testing
+   - Repurpose `financials-ui` into a Vite + React + TypeScript app.
+   - Use the existing financial-items endpoints for list/create/update/delete flows.
+   - Run the UI and API on the development machine with placeholder bind addresses and verify another device on the same private network can access the UI.
+   - Use a dev proxy first to avoid adding CORS before it is needed.
 
-4. Example data only
+4. Projection planning
+   - Use financial items as the projection input foundation.
+   - Keep v1 deterministic: whole years, annual compounding, end-of-year contributions, per-item series, and aggregate totals.
+   - See [Projection Planning](projection-planning.md) for proposed request/response shapes and the later staged implementation steps.
+
+5. Example data only
    - Include fake example requests/responses.
    - Do not include real household data.
 
@@ -122,6 +130,8 @@ FINANCIALS_DATA_PATH=./data/financial-items.json
 For DynamoDB Local parity testing, use the same table-oriented configuration with a local endpoint override in an ignored `.env` file.
 
 Private/operator docs may define the real values for a specific machine or LAN. Those details should stay outside git.
+
+For the initial UI smoke test, run both services on the development machine with configurable placeholder bind addresses. The committed docs should describe the pattern generically, for example `http://<dev-machine-private-ip>:<ui-port>`, without committing the real home-network address. The Vite dev server can proxy `/api/*` to the local API during development; later static hosting such as AWS Amplify will need an explicit API base URL and API CORS support.
 
 ## Suggested staged PR plan
 
@@ -176,12 +186,77 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 6: Projection planning
 
+- [x] **Status:** Completed
+- **Branch:** `step-06-projection-planning`
+- **Pull Request:** [#6](https://github.com/zachfire9/financials-api/pull/6)
+- Use the completed financial item model as the input foundation for projection planning.
+- Define projection request/response shapes after financial item CRUD is working.
+- Create the staged backend/UI plan, now intentionally putting a basic `financials-ui` rebuild and local-network smoke test before projection implementation.
+
+### Step 7: Repurpose `financials-ui` as a basic React app shell
+
 - [ ] **Status:** Pending
 - **Branch:** TBD
 - **Pull Request:** TBD
-- Use the completed financial item model as the input foundation for projection planning.
-- Define projection request/response shapes after financial item CRUD is working.
-- Create a sibling UI plan against the concrete financial items API first, then extend it for projections when the API contract is ready.
+- Replace the old Django/Heroku-era UI with a Vite + React + TypeScript app.
+- Keep the first UI branch focused on project scaffolding, public-safe config examples, local run/build commands, and a minimal app shell.
+- Use static-hosting-friendly conventions so the app can later run in AWS Amplify (`npm run build` output in `dist/`).
+
+### Step 8: Wire UI to the financial-items API
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add a typed API client for the existing `/financial-items` contract.
+- Implement list/create/update/delete flows against the running local API.
+- Add basic loading, empty, validation-error, and stale-data/transient-error handling.
+- Use fake/example data in tests and docs only.
+
+### Step 9: Local home-network smoke test
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Run the API and UI dev servers on the development machine using placeholder bind-address documentation.
+- Configure the UI dev proxy so browser calls can go through the UI server during local testing.
+- Verify another device on the same private network can load the UI and exercise financial item CRUD.
+- Keep real LAN addresses, hostnames, firewall/router details, and machine-specific notes out of git.
+
+### Step 10: API CORS and deploy-readiness prep
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add API CORS support and configuration only after the local proxy-based UI workflow is proven.
+- Document placeholder allowed-origin settings for future static hosting such as AWS Amplify.
+- Keep real deployed origins and private runtime values in ignored local config or private operator notes.
+
+### Step 11: Projection calculation engine
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Create projection domain models in `internal/projections`.
+- Implement deterministic whole-year projection calculations test-first.
+- Cover per-item yearly balances, aggregate totals, validation, currency mismatches, negative return assumptions, and rounding behavior.
+
+### Step 12: Projection API endpoint
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add `POST /projections` to the HTTP handler tree.
+- Support repository-backed projections when `items` is omitted.
+- Support caller-supplied hypothetical items without saving them.
+- Document fake/example request and response payloads.
+
+### Step 13: Projection UI
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Extend `financials-ui` with projection request controls and an early chart/table view once the projection API exists.
+- Keep typed API client boundaries, placeholder-only config, and stale-data handling.
 
 ## Open decisions
 
@@ -190,7 +265,10 @@ Track each step as a living checklist. Each implementation PR should update this
 - Initial financial item fields are set: name, amount, currency, annual return rate basis points, annual contribution, sort order, ID, and timestamps.
 - Whether financial item deletion is needed immediately or whether archive/inactive status is safer.
 - Whether authentication is needed for local-only use, and if so which lightweight mechanism fits best.
-- Projection assumptions, calculation behavior, and `POST /projections` contract after the financial item workflow is built out.
+- UI stack recommendation: Vite + React + TypeScript, with static build output suitable for AWS Amplify later.
+- Local UI/API smoke testing should use placeholder bind-address docs and keep real LAN details out of git.
+- Projection v1 request/response shape is proposed in `docs/projection-planning.md`; review open questions after the basic UI/API workflow is tested.
+- Projection v1 contribution timing default is end-of-year unless Zach chooses otherwise.
 
 ## Verification expectations
 
