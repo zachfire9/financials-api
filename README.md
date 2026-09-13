@@ -7,11 +7,11 @@ The first implementation phase focuses on the API skeleton and generic financial
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: projection planning
+- Current branch focus: projection planning and UI-first sequence adjustment
 - Implemented endpoints: `GET /health` plus `/financial-items` create/list/read/update/delete behavior
 - Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, and repository behavior tests
 - Implemented local storage options: process-local memory and gitignored JSON file storage
-- Next planned area: projection calculation engine
+- Next planned area: basic `financials-ui` React app shell before projection calculation logic
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Define the next backend contract and implementation sequence for projections now that financial item CRUD and local storage are in place.
+Define the next backend contract for projections now that financial item CRUD and local storage are in place, while deferring projection implementation until a basic UI has exercised the existing API.
 
 This is a planning step only. It does not implement projection calculation code or a projection endpoint yet.
 
@@ -43,7 +43,7 @@ Keep v1 deterministic and intentionally small:
 - Do not model taxes, inflation, withdrawals, retirement dates, account categories, or contribution timing variants yet.
 - Do not persist projection outputs yet; calculate on demand from current or supplied inputs.
 
-This keeps the calculation easy to test and gives the UI enough structure for an early chart/table.
+This keeps the calculation easy to test and gives the UI enough structure for a later chart/table after the initial financial-items UI is working.
 
 ## Proposed endpoint
 
@@ -140,9 +140,44 @@ Year `0` should always represent the starting state with zero growth and zero co
 
 Use integer cents throughout. Define rounding behavior in tests before implementation; recommended v1 behavior is half-away-from-zero using integer arithmetic for deterministic results.
 
-## Proposed backend implementation plan
+## Proposed implementation sequence
 
-### Step 7: Projection calculation engine
+### Step 7: Basic `financials-ui` React app shell
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Repurpose the old UI repo as a Vite + React + TypeScript app.
+- Keep the first UI branch focused on scaffolding, public-safe config, and local run/build commands.
+- Preserve future AWS Amplify compatibility by using normal static build output and placeholder API config.
+
+### Step 8: Financial-items UI/API integration
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Build list/create/update/delete screens against the existing `/financial-items` API.
+- Add a typed API client and basic loading/error/empty-state behavior.
+- Use the local dev proxy while the API is still local-only.
+
+### Step 9: Local network smoke test
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Run the API and UI dev servers on the development machine using placeholder bind-address documentation.
+- Verify another device on the same private network can load the UI and exercise financial item CRUD.
+- Keep real LAN addresses, hostnames, firewall/router details, and machine-specific notes out of git.
+
+### Step 10: API CORS and deploy-readiness prep
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add configurable CORS only after proxy-based local UI testing is useful.
+- Document placeholder allowed origins for future static hosting such as AWS Amplify.
+
+### Step 11: Projection calculation engine
 
 - [ ] **Status:** Pending
 - **Branch:** TBD
@@ -152,7 +187,7 @@ Use integer cents throughout. Define rounding behavior in tests before implement
 - Cover multiple items, totals, negative return assumptions, zero years rejection, year upper bound rejection, currency mismatch rejection, and rounding behavior.
 - Implement the calculation engine without HTTP concerns.
 
-### Step 8: Projection API endpoint
+### Step 12: Projection API endpoint
 
 - [ ] **Status:** Pending
 - **Branch:** TBD
@@ -163,13 +198,12 @@ Use integer cents throughout. Define rounding behavior in tests before implement
 - Add endpoint tests for success, validation failures, repository fallback, and unknown JSON fields.
 - Update README examples with fake data only.
 
-### Step 9: Sibling UI planning
+### Step 13: Projection UI
 
 - [ ] **Status:** Pending
 - **Branch:** TBD
 - **Pull Request:** TBD
-- Create the detailed `financials-ui` plan after the projection API contract is reviewed.
-- Plan a React UI around the concrete financial items and projections contracts.
+- Extend `financials-ui` with projection request controls and an early chart/table view once the projection API exists.
 - Keep UI config public-safe with placeholder API base URLs only.
 - Plan stale-data/error handling so transient API failures do not wipe useful loaded data.
 
@@ -183,7 +217,7 @@ Use integer cents throughout. Define rounding behavior in tests before implement
 - Persisted projection scenarios
 - Authentication or multi-user ownership
 
-These can be added after the basic deterministic projection contract is useful and tested.
+These can be added after the basic UI/API workflow is useful and the deterministic projection contract is implemented and tested.
 
 ## Review questions before implementation
 
