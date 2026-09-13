@@ -1,0 +1,14 @@
+# Build outputs
+/bin/
+/dist/
+
+# Local runtime/config files
+.env
+.env.*
+!.env.example
+/data/
+
+# Editor/OS noise
+.DS_Store
+.vscode/
+.idea/

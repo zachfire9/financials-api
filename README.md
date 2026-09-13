@@ -1,19 +1,56 @@
 # Financials API
 
-This repository is being reset from the original prototype into a new API for a local-first personal financial planning application.
+A local-first personal financial planning API, rebuilt from the old prototype as a Go service.
 
-The previous Spring Boot prototype has been removed on the `docs/reset-api-plan` branch so the rewrite can start from a clean baseline.
+The first implementation phase focuses on the API skeleton and current-investment tracking. Projection features are intentionally deferred until the investment model and workflow are built out.
 
 ## Current status
 
-- Existing application code: removed
-- Current branch purpose: public-safe planning baseline
-- Detailed implementation: not started yet
+- Runtime: Go HTTP API
+- Current branch focus: Go API skeleton with health endpoint
+- Implemented endpoint: `GET /health`
+- Next planned area: current investment model and storage API
 - Runtime/deployment specifics: intentionally omitted from git until they can be represented with placeholders and local-only config files
 
 ## Planning documents
 
 - [Local Hosting Plan](docs/local-hosting-plan.md)
+
+## Local development
+
+Requirements:
+
+- Go 1.22+
+
+Run tests:
+
+```powershell
+go test ./...
+```
+
+Start the API locally:
+
+```powershell
+go run ./cmd/api
+```
+
+The service listens on `:8080` by default. Override the bind address with `FINANCIALS_API_ADDR`, for example:
+
+```powershell
+$env:FINANCIALS_API_ADDR=":8081"; go run ./cmd/api
+```
+
+Check the health endpoint:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
 
 ## Public repo boundaries
 
