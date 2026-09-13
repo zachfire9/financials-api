@@ -21,10 +21,11 @@ The API repo should own the core domain model, calculation logic, API contract, 
 The API repo should contain:
 
 - Domain model and validation rules
-- Projection/calculation engine
+- Current-investment tracking API and storage model
+- Projection/calculation engine after the investment inventory is built out
 - HTTP API contract
 - Public-safe deployment docs and examples
-- Tests for calculations, request validation, and API behavior
+- Tests for investment CRUD, calculations, request validation, and API behavior
 - Local configuration template files such as `.env.example`
 
 The API repo should not contain:
@@ -62,33 +63,40 @@ Suggested default:
 
 ## Persistence recommendation
 
-A NoSQL-style store makes sense if the first persisted data is user-created planning scenarios and projection snapshots, because those records are naturally document-shaped and may evolve as assumptions change.
+A NoSQL-style store makes sense if the first persisted data is the current investment inventory, because each investment record is document-shaped and the fields may evolve as account types, holdings, balances, and metadata get refined. It should also support later projection inputs without forcing a storage rewrite.
 
 Recommended AWS-swappable approach:
 
-- Model persistence around DynamoDB-style access patterns from the start: scenario ID, user/owner scope if needed later, created/updated timestamps, and versioned JSON documents.
-- Keep a `ScenarioRepository` interface in the application layer.
+- Model persistence around DynamoDB-style access patterns from the start: investment ID, user/owner scope if needed later, investment/account type, institution/name, created/updated timestamps, and versioned JSON documents.
+- Keep an `InvestmentRepository` interface in the application layer first; add a scenario/projection repository later only when projections need saved inputs or outputs.
 - Implement local development with either DynamoDB Local for closest AWS parity or a simple file/embedded adapter for convenience.
 - Treat DynamoDB as the likely AWS target if/when the app moves from local-only hosting to an AWS-backed deployment.
 - Keep calculation logic independent from persistence so the projection engine remains deterministic and easy to test.
 - Avoid designing around database-specific query features until the app has real access patterns.
 
-If the app quickly needs relational querying, reporting across many scenarios, or ad hoc analytics, revisit SQLite/Postgres/Aurora. For the initial local-first scenario workflow with an AWS migration path, a DynamoDB-shaped document model is a reasonable default.
+If the app quickly needs relational querying, reporting across many investments, or ad hoc analytics, revisit SQLite/Postgres/Aurora. For the initial local-first investment inventory with an AWS migration path, a DynamoDB-shaped document model is a reasonable default.
 
 ## Initial API scope
 
-Start with the smallest useful backend contract:
+Start with the smallest useful backend contract for current investments. Projections should wait until the investment inventory model and UI workflow are built out.
 
 1. Health endpoint
    - `GET /health`
    - Confirms the server is running.
 
-2. Scenario projection endpoint
-   - `POST /projections`
-   - Accepts a public-safe request model for planning assumptions and account inputs.
-   - Returns yearly projection rows and summary metrics.
+2. Current investments endpoints
+   - `GET /investments`
+   - `POST /investments`
+   - `GET /investments/{id}`
+   - `PUT /investments/{id}`
+   - `DELETE /investments/{id}` if deletion is useful for local cleanup.
+   - Tracks fake/example-safe fields first: name, type/category, institution label, balance/value, contribution metadata, and timestamps.
 
-3. Example data only
+3. Projection placeholder only
+   - Keep projection concepts in the plan, but do not build `POST /projections` until investment entry/storage is working.
+   - Avoid locking projection request/response shapes before the investment model settles.
+
+4. Example data only
    - Include fake example requests/responses.
    - Do not include real household data.
 
@@ -107,8 +115,8 @@ Public docs may use examples like:
 FINANCIALS_API_HOST=127.0.0.1
 FINANCIALS_API_PORT=8000
 FINANCIALS_STORAGE_DRIVER=local
-FINANCIALS_TABLE_NAME=financials-scenarios-dev
-FINANCIALS_DATA_PATH=./data/scenarios.json
+FINANCIALS_TABLE_NAME=financials-investments-dev
+FINANCIALS_DATA_PATH=./data/investments.json
 ```
 
 For DynamoDB Local parity testing, use the same table-oriented configuration with a local endpoint override in an ignored `.env` file.
@@ -130,16 +138,16 @@ Private/operator docs may define the real values for a specific machine or LAN. 
 - Add a health endpoint.
 - Add Go test tooling and one passing endpoint test.
 
-### Step 3: Domain model and projection tests
+### Step 3: Current investment model and tests
 
-- Define the first request/response models.
-- Add deterministic projection fixtures.
-- Implement the calculation engine test-first.
+- Define the first investment request/response models.
+- Add deterministic fake investment fixtures.
+- Implement investment validation and repository behavior test-first.
 
-### Step 4: Projection endpoint
+### Step 4: Current investments API
 
-- Wire the calculation engine into `POST /projections`.
-- Add endpoint tests for valid input and validation failures.
+- Wire the investment repository into `/investments` endpoints.
+- Add endpoint tests for create/list/read/update/delete behavior and validation failures.
 - Document example requests/responses with fake data.
 
 ### Step 5: Local configuration and storage workflow
@@ -149,17 +157,20 @@ Private/operator docs may define the real values for a specific machine or LAN. 
 - Add the first repository adapter behind an interface.
 - Document local startup commands, storage driver selection, and config precedence.
 
-### Step 6: UI contract handoff
+### Step 6: Projection planning
 
-- Freeze the initial OpenAPI/response shape enough for UI work.
-- Create a sibling UI plan against the concrete API contract.
+- Use the completed investment model as the input foundation for projection planning.
+- Define projection request/response shapes after current investments are working.
+- Create a sibling UI plan against the concrete investment API first, then extend it for projections when the API contract is ready.
 
 ## Open decisions
 
 - Go HTTP stack/router choice: standard library only vs `chi` as the first router dependency.
 - Local storage adapter choice: DynamoDB Local for AWS parity vs simple JSON/file adapter for lowest-friction local development.
-- Whether projections are stateless requests only or saved scenarios from the start.
+- Initial investment fields and account categories for the current-investments workflow.
+- Whether investment deletion is needed immediately or whether archive/inactive status is safer.
 - Whether authentication is needed for local-only use, and if so which lightweight mechanism fits best.
+- Projection assumptions, calculation behavior, and `POST /projections` contract after the current investment workflow is built out.
 
 ## Verification expectations
 
