@@ -125,14 +125,22 @@ Private/operator docs may define the real values for a specific machine or LAN. 
 
 ## Suggested staged PR plan
 
+Track each step as a living checklist. Each implementation PR should update this section with the branch, PR link, and status so `master` reflects completed work after Zach merges the PR.
+
 ### Step 1: Planning baseline
 
+- [x] **Status:** Completed
+- **Branch:** `docs/reset-api-plan`
+- **Pull Request:** [#1](https://github.com/zachfire9/financials-api/pull/1)
 - Remove the old prototype application files.
 - Add this public-safe architecture/local-hosting plan.
 - Update the README to explain the repo reset.
 
 ### Step 2: Go API skeleton
 
+- [x] **Status:** Completed
+- **Branch:** `step-02-go-api-skeleton`
+- **Pull Request:** [#2](https://github.com/zachfire9/financials-api/pull/2)
 - Add the Go module and backend project structure.
 - Add dependency management.
 - Add a health endpoint.
@@ -140,18 +148,27 @@ Private/operator docs may define the real values for a specific machine or LAN. 
 
 ### Step 3: Current investment model and tests
 
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
 - Define the first investment request/response models.
 - Add deterministic fake investment fixtures.
 - Implement investment validation and repository behavior test-first.
 
 ### Step 4: Current investments API
 
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
 - Wire the investment repository into `/investments` endpoints.
 - Add endpoint tests for create/list/read/update/delete behavior and validation failures.
 - Document example requests/responses with fake data.
 
 ### Step 5: Local configuration and storage workflow
 
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
 - Add `.env.example` with placeholders only.
 - Confirm `.env` is ignored.
 - Add the first repository adapter behind an interface.
@@ -159,6 +176,9 @@ Private/operator docs may define the real values for a specific machine or LAN. 
 
 ### Step 6: Projection planning
 
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
 - Use the completed investment model as the input foundation for projection planning.
 - Define projection request/response shapes after current investments are working.
 - Create a sibling UI plan against the concrete investment API first, then extend it for projections when the API contract is ready.
