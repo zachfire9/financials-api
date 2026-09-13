@@ -14,7 +14,7 @@ The first implementation phase focuses on the API skeleton and current-investmen
 
 ## Planning documents
 
-- [Local Hosting Plan](docs/local-hosting-plan.md)
+- [App Rewrite Plan](docs/app-rewrite.md)
 
 ## Local development
 
