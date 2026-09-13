@@ -48,30 +48,32 @@ Detailed UI planning should wait until the API contract is stable enough to avoi
 
 ## Recommended backend shape
 
-Use Go for the backend implementation.
+Use Go for the backend implementation and choose libraries that can run locally now but map cleanly to AWS later.
 
 Suggested default:
 
-- Go HTTP API using the standard library plus a small router such as `chi` if routing grows beyond a few endpoints
+- Go HTTP API using the standard library first, with a small router such as `chi` only if routing grows beyond a few endpoints
+- Handler/core split that can run behind a normal HTTP server locally and an AWS Lambda/API Gateway adapter later
 - Plain Go structs for request/response models and domain entities
 - Go's built-in `testing` package for calculation and endpoint tests
 - OpenAPI documentation generated or maintained once the first contract stabilizes
-- Embedded local NoSQL persistence if saved scenarios are needed
+- Persistence behind a small repository interface so local storage and AWS storage are adapters, not domain concerns
 - `.env` loading for local settings, with process environment values taking precedence
 
 ## Persistence recommendation
 
 A NoSQL-style store makes sense if the first persisted data is user-created planning scenarios and projection snapshots, because those records are naturally document-shaped and may evolve as assumptions change.
 
-Recommended local-first approach:
+Recommended AWS-swappable approach:
 
-- Start with an embedded Go-friendly NoSQL/key-value store such as `bbolt`.
-- Store scenario documents as versioned JSON values behind a repository interface.
+- Model persistence around DynamoDB-style access patterns from the start: scenario ID, user/owner scope if needed later, created/updated timestamps, and versioned JSON documents.
+- Keep a `ScenarioRepository` interface in the application layer.
+- Implement local development with either DynamoDB Local for closest AWS parity or a simple file/embedded adapter for convenience.
+- Treat DynamoDB as the likely AWS target if/when the app moves from local-only hosting to an AWS-backed deployment.
 - Keep calculation logic independent from persistence so the projection engine remains deterministic and easy to test.
-- Avoid requiring an external database server for the first local deployment.
-- Leave room to swap the repository implementation later for MongoDB, DynamoDB, or another hosted/document database if remote sync or multi-device use becomes important.
+- Avoid designing around database-specific query features until the app has real access patterns.
 
-If the app quickly needs relational querying, reporting across many scenarios, or ad hoc analytics, revisit SQLite/Postgres. For the initial local-first scenario workflow, embedded NoSQL is a reasonable default.
+If the app quickly needs relational querying, reporting across many scenarios, or ad hoc analytics, revisit SQLite/Postgres/Aurora. For the initial local-first scenario workflow with an AWS migration path, a DynamoDB-shaped document model is a reasonable default.
 
 ## Initial API scope
 
@@ -104,8 +106,12 @@ Public docs may use examples like:
 ```env
 FINANCIALS_API_HOST=127.0.0.1
 FINANCIALS_API_PORT=8000
-FINANCIALS_DATA_PATH=./data/financials.bbolt
+FINANCIALS_STORAGE_DRIVER=local
+FINANCIALS_TABLE_NAME=financials-scenarios-dev
+FINANCIALS_DATA_PATH=./data/scenarios.json
 ```
+
+For DynamoDB Local parity testing, use the same table-oriented configuration with a local endpoint override in an ignored `.env` file.
 
 Private/operator docs may define the real values for a specific machine or LAN. Those details should stay outside git.
 
@@ -136,11 +142,12 @@ Private/operator docs may define the real values for a specific machine or LAN. 
 - Add endpoint tests for valid input and validation failures.
 - Document example requests/responses with fake data.
 
-### Step 5: Local configuration workflow
+### Step 5: Local configuration and storage workflow
 
 - Add `.env.example` with placeholders only.
 - Confirm `.env` is ignored.
-- Document local startup commands and config precedence.
+- Add the first repository adapter behind an interface.
+- Document local startup commands, storage driver selection, and config precedence.
 
 ### Step 6: UI contract handoff
 
@@ -150,7 +157,7 @@ Private/operator docs may define the real values for a specific machine or LAN. 
 ## Open decisions
 
 - Go HTTP stack/router choice: standard library only vs `chi` as the first router dependency.
-- Exact embedded NoSQL store: `bbolt` as the default candidate vs Badger or another Go-native option.
+- Local storage adapter choice: DynamoDB Local for AWS parity vs simple JSON/file adapter for lowest-friction local development.
 - Whether projections are stateless requests only or saved scenarios from the start.
 - Whether authentication is needed for local-only use, and if so which lightweight mechanism fits best.
 
