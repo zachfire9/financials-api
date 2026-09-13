@@ -48,15 +48,30 @@ Detailed UI planning should wait until the API contract is stable enough to avoi
 
 ## Recommended backend shape
 
-Use a small Python API unless a later step identifies a stronger reason to choose Go or another stack.
+Use Go for the backend implementation.
 
 Suggested default:
 
-- FastAPI for HTTP endpoints and OpenAPI generation
-- Pydantic models for request/response validation
-- Pytest for calculation and endpoint tests
-- Local JSON or SQLite persistence depending on the first real data needs
+- Go HTTP API using the standard library plus a small router such as `chi` if routing grows beyond a few endpoints
+- Plain Go structs for request/response models and domain entities
+- Go's built-in `testing` package for calculation and endpoint tests
+- OpenAPI documentation generated or maintained once the first contract stabilizes
+- Embedded local NoSQL persistence if saved scenarios are needed
 - `.env` loading for local settings, with process environment values taking precedence
+
+## Persistence recommendation
+
+A NoSQL-style store makes sense if the first persisted data is user-created planning scenarios and projection snapshots, because those records are naturally document-shaped and may evolve as assumptions change.
+
+Recommended local-first approach:
+
+- Start with an embedded Go-friendly NoSQL/key-value store such as `bbolt`.
+- Store scenario documents as versioned JSON values behind a repository interface.
+- Keep calculation logic independent from persistence so the projection engine remains deterministic and easy to test.
+- Avoid requiring an external database server for the first local deployment.
+- Leave room to swap the repository implementation later for MongoDB, DynamoDB, or another hosted/document database if remote sync or multi-device use becomes important.
+
+If the app quickly needs relational querying, reporting across many scenarios, or ad hoc analytics, revisit SQLite/Postgres. For the initial local-first scenario workflow, embedded NoSQL is a reasonable default.
 
 ## Initial API scope
 
@@ -89,7 +104,7 @@ Public docs may use examples like:
 ```env
 FINANCIALS_API_HOST=127.0.0.1
 FINANCIALS_API_PORT=8000
-FINANCIALS_DATA_PATH=./data/dev.db
+FINANCIALS_DATA_PATH=./data/financials.bbolt
 ```
 
 Private/operator docs may define the real values for a specific machine or LAN. Those details should stay outside git.
@@ -102,12 +117,12 @@ Private/operator docs may define the real values for a specific machine or LAN. 
 - Add this public-safe architecture/local-hosting plan.
 - Update the README to explain the repo reset.
 
-### Step 2: API skeleton
+### Step 2: Go API skeleton
 
-- Add the backend project structure.
+- Add the Go module and backend project structure.
 - Add dependency management.
 - Add a health endpoint.
-- Add test tooling and one passing endpoint test.
+- Add Go test tooling and one passing endpoint test.
 
 ### Step 3: Domain model and projection tests
 
@@ -134,8 +149,8 @@ Private/operator docs may define the real values for a specific machine or LAN. 
 
 ## Open decisions
 
-- Python/FastAPI vs Go for the backend implementation.
-- JSON file vs SQLite for initial persistence.
+- Go HTTP stack/router choice: standard library only vs `chi` as the first router dependency.
+- Exact embedded NoSQL store: `bbolt` as the default candidate vs Badger or another Go-native option.
 - Whether projections are stateless requests only or saved scenarios from the start.
 - Whether authentication is needed for local-only use, and if so which lightweight mechanism fits best.
 
