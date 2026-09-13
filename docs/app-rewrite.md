@@ -179,7 +179,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-06-projection-planning`
-- **Pull Request:** TBD
+- **Pull Request:** [#6](https://github.com/zachfire9/financials-api/pull/6)
 - Use the completed financial item model as the input foundation for projection planning.
 - Define projection request/response shapes after financial item CRUD is working.
 - Create the staged backend/UI projection plan: Step 7 calculation engine, Step 8 projection API endpoint, and Step 9 sibling UI planning.
