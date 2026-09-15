@@ -59,6 +59,102 @@ func TestCalculateProjectsPerItemBalancesAndAggregateTotals(t *testing.T) {
 	assertYearlyBalance(t, projection.Totals[2], 2, 41475, 3000, 2975)
 }
 
+func TestCalculateProjectsSavingAndDrawdownPhases(t *testing.T) {
+	projection, err := Calculate(Request{
+		SavingYears:           1,
+		DrawdownYears:         1,
+		AnnualWithdrawalCents: 4200,
+		Items: []ItemInput{
+			{
+				ID:                                  "item_000001",
+				Name:                                "Example brokerage",
+				AmountCents:                         10000,
+				Currency:                            "USD",
+				AnnualReturnRateBasisPoints:         1000,
+				DrawdownAnnualReturnRateBasisPoints: intPtr(0),
+				AnnualContributionCents:             1000,
+				SortOrder:                           1,
+			},
+			{
+				ID:                                  "item_000002",
+				Name:                                "Example IRA",
+				AmountCents:                         30000,
+				Currency:                            "USD",
+				AnnualReturnRateBasisPoints:         0,
+				DrawdownAnnualReturnRateBasisPoints: intPtr(-1000),
+				AnnualContributionCents:             0,
+				SortOrder:                           2,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected drawdown projection to calculate, got %v", err)
+	}
+
+	if projection.Years != 2 || projection.SavingYears != 1 || projection.DrawdownYears != 1 || projection.Currency != "USD" {
+		t.Fatalf("unexpected projection metadata: %+v", projection)
+	}
+
+	brokerage := projection.Items[0]
+	if brokerage.DrawdownAnnualReturnRateBasisPoints == nil || *brokerage.DrawdownAnnualReturnRateBasisPoints != 0 {
+		t.Fatalf("expected brokerage drawdown return rate to be preserved, got %+v", brokerage.DrawdownAnnualReturnRateBasisPoints)
+	}
+	assertYearlyPhaseBalance(t, brokerage.YearlyBalances[0], 0, PhaseStarting, 10000, 0, 0, 0, 0)
+	assertYearlyPhaseBalance(t, brokerage.YearlyBalances[1], 1, PhaseSaving, 12000, 1000, 0, 1000, 0)
+	assertYearlyPhaseBalance(t, brokerage.YearlyBalances[2], 2, PhaseDrawdown, 10800, 0, 1200, 0, 0)
+
+	ira := projection.Items[1]
+	assertYearlyPhaseBalance(t, ira.YearlyBalances[0], 0, PhaseStarting, 30000, 0, 0, 0, 0)
+	assertYearlyPhaseBalance(t, ira.YearlyBalances[1], 1, PhaseSaving, 30000, 0, 0, 0, 0)
+	assertYearlyPhaseBalance(t, ira.YearlyBalances[2], 2, PhaseDrawdown, 24000, 0, 3000, -3000, 0)
+
+	assertYearlyPhaseBalance(t, projection.Totals[0], 0, PhaseStarting, 40000, 0, 0, 0, 0)
+	assertYearlyPhaseBalance(t, projection.Totals[1], 1, PhaseSaving, 42000, 1000, 0, 1000, 0)
+	assertYearlyPhaseBalance(t, projection.Totals[2], 2, PhaseDrawdown, 34800, 0, 4200, -3000, 0)
+}
+
+func TestCalculateUsesAccumulationReturnDuringDrawdownWhenNoDrawdownRateIsProvided(t *testing.T) {
+	projection, err := Calculate(Request{
+		SavingYears:           0,
+		DrawdownYears:         1,
+		AnnualWithdrawalCents: 1000,
+		Items: []ItemInput{{
+			ID:                          "item_000001",
+			Name:                        "Example balanced fund",
+			AmountCents:                 10000,
+			Currency:                    "USD",
+			AnnualReturnRateBasisPoints: 1000,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("expected drawdown projection to calculate, got %v", err)
+	}
+
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, PhaseDrawdown, 10000, 0, 1000, 1000, 0)
+	assertYearlyPhaseBalance(t, projection.Totals[1], 1, PhaseDrawdown, 10000, 0, 1000, 1000, 0)
+}
+
+func TestCalculateFloorsDrawdownBalancesAndReportsUnfundedWithdrawal(t *testing.T) {
+	projection, err := Calculate(Request{
+		SavingYears:           0,
+		DrawdownYears:         1,
+		AnnualWithdrawalCents: 15000,
+		Items: []ItemInput{{
+			ID:                          "item_000001",
+			Name:                        "Example small account",
+			AmountCents:                 10000,
+			Currency:                    "USD",
+			AnnualReturnRateBasisPoints: 0,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("expected drawdown projection to calculate, got %v", err)
+	}
+
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, PhaseDrawdown, 0, 0, 10000, 0, 5000)
+	assertYearlyPhaseBalance(t, projection.Totals[1], 1, PhaseDrawdown, 0, 0, 10000, 0, 5000)
+}
+
 func TestCalculateAllowsNegativeReturnAssumptions(t *testing.T) {
 	projection, err := Calculate(Request{
 		Years: 2,
@@ -131,6 +227,39 @@ func TestCalculateRejectsInvalidRequests(t *testing.T) {
 			want: "years",
 		},
 		{
+			name: "v1 years cannot be combined with v2 phase fields",
+			request: Request{Years: 10, SavingYears: 5, Items: []ItemInput{{
+				Name:     "Example",
+				Currency: "USD",
+			}}},
+			want: "mutually exclusive",
+		},
+		{
+			name: "drawdown years require withdrawal amount",
+			request: Request{SavingYears: 1, DrawdownYears: 1, Items: []ItemInput{{
+				Name:     "Example",
+				Currency: "USD",
+			}}},
+			want: "annualWithdrawalCents",
+		},
+		{
+			name: "phase horizons require at least one projected year",
+			request: Request{SavingYears: 0, DrawdownYears: 0, Items: []ItemInput{{
+				Name:     "Example",
+				Currency: "USD",
+			}}},
+			want: "years",
+		},
+		{
+			name: "invalid drawdown return rate",
+			request: Request{SavingYears: 1, Items: []ItemInput{{
+				Name:                                "Example",
+				Currency:                            "USD",
+				DrawdownAnnualReturnRateBasisPoints: intPtr(100001),
+			}}},
+			want: "drawdownAnnualReturnRateBasisPoints",
+		},
+		{
 			name:    "no items",
 			request: Request{Years: 10},
 			want:    "items",
@@ -175,4 +304,15 @@ func assertYearlyBalance(t *testing.T, got YearlyBalance, year int, balanceCents
 	if got.Year != year || got.BalanceCents != balanceCents || got.ContributionCents != contributionCents || got.GrowthCents != growthCents {
 		t.Fatalf("unexpected yearly balance: got %+v, want year=%d balance=%d contribution=%d growth=%d", got, year, balanceCents, contributionCents, growthCents)
 	}
+}
+
+func assertYearlyPhaseBalance(t *testing.T, got YearlyBalance, year int, phase Phase, balanceCents int64, contributionCents int64, withdrawalCents int64, growthCents int64, unfundedWithdrawalCents int64) {
+	t.Helper()
+	if got.Year != year || got.Phase != phase || got.BalanceCents != balanceCents || got.ContributionCents != contributionCents || got.WithdrawalCents != withdrawalCents || got.GrowthCents != growthCents || got.UnfundedWithdrawalCents != unfundedWithdrawalCents {
+		t.Fatalf("unexpected yearly phase balance: got %+v, want year=%d phase=%s balance=%d contribution=%d withdrawal=%d growth=%d unfundedWithdrawal=%d", got, year, phase, balanceCents, contributionCents, withdrawalCents, growthCents, unfundedWithdrawalCents)
+	}
+}
+
+func intPtr(value int) *int {
+	return &value
 }

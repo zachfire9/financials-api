@@ -279,8 +279,8 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 16: Drawdown calculation engine
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-16-drawdown-calculation-engine`
 - **Pull Request:** TBD
 - Extend `internal/projections` test-first with explicit saving/drawdown phases and optional per-item drawdown return rates.
 - Preserve v1 accumulation-only behavior while adding annual withdrawals and phase-aware yearly totals.

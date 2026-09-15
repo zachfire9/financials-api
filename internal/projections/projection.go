@@ -15,47 +15,65 @@ const (
 	basisPointsPerWhole                = 10000
 )
 
+type Phase string
+
+const (
+	PhaseStarting Phase = "starting"
+	PhaseSaving   Phase = "saving"
+	PhaseDrawdown Phase = "drawdown"
+)
+
 // Request contains the pure domain inputs needed to calculate a whole-year projection.
 type Request struct {
-	Years int         `json:"years"`
-	Items []ItemInput `json:"items"`
+	Years                 int         `json:"years"`
+	SavingYears           int         `json:"-"`
+	DrawdownYears         int         `json:"-"`
+	AnnualWithdrawalCents int64       `json:"-"`
+	Items                 []ItemInput `json:"items"`
 }
 
 // ItemInput is one configurable financial item used by the projection engine.
 type ItemInput struct {
-	ID                          string `json:"id"`
-	Name                        string `json:"name"`
-	AmountCents                 int64  `json:"amountCents"`
-	Currency                    string `json:"currency"`
-	AnnualReturnRateBasisPoints int    `json:"annualReturnRateBasisPoints"`
-	AnnualContributionCents     int64  `json:"annualContributionCents"`
-	SortOrder                   int    `json:"sortOrder"`
+	ID                                  string `json:"id"`
+	Name                                string `json:"name"`
+	AmountCents                         int64  `json:"amountCents"`
+	Currency                            string `json:"currency"`
+	AnnualReturnRateBasisPoints         int    `json:"annualReturnRateBasisPoints"`
+	DrawdownAnnualReturnRateBasisPoints *int   `json:"-"`
+	AnnualContributionCents             int64  `json:"annualContributionCents"`
+	SortOrder                           int    `json:"sortOrder"`
 }
 
 // Projection is the deterministic whole-year projection result.
 type Projection struct {
-	Years    int             `json:"years"`
-	Currency string          `json:"currency"`
-	Items    []ProjectedItem `json:"items"`
-	Totals   []YearlyBalance `json:"totals"`
+	Years         int             `json:"years"`
+	SavingYears   int             `json:"-"`
+	DrawdownYears int             `json:"-"`
+	Currency      string          `json:"currency"`
+	Items         []ProjectedItem `json:"items"`
+	Totals        []YearlyBalance `json:"totals"`
 }
 
 // ProjectedItem contains the per-year projection series for one input item.
 type ProjectedItem struct {
-	ID                          string          `json:"id"`
-	Name                        string          `json:"name"`
-	StartingAmountCents         int64           `json:"startingAmountCents"`
-	AnnualReturnRateBasisPoints int             `json:"annualReturnRateBasisPoints"`
-	AnnualContributionCents     int64           `json:"annualContributionCents"`
-	YearlyBalances              []YearlyBalance `json:"yearlyBalances"`
+	ID                                  string          `json:"id"`
+	Name                                string          `json:"name"`
+	StartingAmountCents                 int64           `json:"startingAmountCents"`
+	AnnualReturnRateBasisPoints         int             `json:"annualReturnRateBasisPoints"`
+	DrawdownAnnualReturnRateBasisPoints *int            `json:"-"`
+	AnnualContributionCents             int64           `json:"annualContributionCents"`
+	YearlyBalances                      []YearlyBalance `json:"yearlyBalances"`
 }
 
 // YearlyBalance is the end-of-year balance snapshot for a projection year.
 type YearlyBalance struct {
-	Year              int   `json:"year"`
-	BalanceCents      int64 `json:"balanceCents"`
-	ContributionCents int64 `json:"contributionCents"`
-	GrowthCents       int64 `json:"growthCents"`
+	Year                    int   `json:"year"`
+	Phase                   Phase `json:"-"`
+	BalanceCents            int64 `json:"balanceCents"`
+	ContributionCents       int64 `json:"contributionCents"`
+	WithdrawalCents         int64 `json:"-"`
+	GrowthCents             int64 `json:"growthCents"`
+	UnfundedWithdrawalCents int64 `json:"-"`
 }
 
 // ValidationError groups one or more projection validation failures.
@@ -84,40 +102,141 @@ func Calculate(request Request) (Projection, error) {
 		return items[i].Name < items[j].Name
 	})
 
+	if usesPhaseProjection(request) {
+		return calculatePhaseProjection(request, items), nil
+	}
+	return calculateAccumulationProjection(request.Years, items), nil
+}
+
+func calculateAccumulationProjection(years int, items []ItemInput) Projection {
 	projection := Projection{
-		Years:    request.Years,
+		Years:    years,
 		Currency: items[0].Currency,
 		Items:    make([]ProjectedItem, 0, len(items)),
-		Totals:   make([]YearlyBalance, request.Years+1),
+		Totals:   make([]YearlyBalance, years+1),
 	}
 	for year := range projection.Totals {
 		projection.Totals[year].Year = year
 	}
 
 	for _, input := range items {
-		projected := ProjectedItem{
-			ID:                          input.ID,
-			Name:                        input.Name,
-			StartingAmountCents:         input.AmountCents,
-			AnnualReturnRateBasisPoints: input.AnnualReturnRateBasisPoints,
-			AnnualContributionCents:     input.AnnualContributionCents,
-			YearlyBalances:              calculateItemBalances(input, request.Years),
-		}
-		for year, balance := range projected.YearlyBalances {
-			projection.Totals[year].BalanceCents += balance.BalanceCents
-			projection.Totals[year].ContributionCents += balance.ContributionCents
-			projection.Totals[year].GrowthCents += balance.GrowthCents
-		}
+		projected := newProjectedItem(input, calculateAccumulationItemBalances(input, years))
+		addToTotals(projection.Totals, projected.YearlyBalances)
 		projection.Items = append(projection.Items, projected)
 	}
 
-	return projection, nil
+	return projection
+}
+
+func calculatePhaseProjection(request Request, items []ItemInput) Projection {
+	totalYears := request.SavingYears + request.DrawdownYears
+	projection := Projection{
+		Years:         totalYears,
+		SavingYears:   request.SavingYears,
+		DrawdownYears: request.DrawdownYears,
+		Currency:      items[0].Currency,
+		Items:         make([]ProjectedItem, 0, len(items)),
+		Totals:        make([]YearlyBalance, totalYears+1),
+	}
+	for year := range projection.Totals {
+		projection.Totals[year].Year = year
+		projection.Totals[year].Phase = phaseForYear(year, request.SavingYears)
+	}
+
+	balances := make([]int64, len(items))
+	itemYearlyBalances := make([][]YearlyBalance, len(items))
+	for index, item := range items {
+		balances[index] = item.AmountCents
+		itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
+			Year:         0,
+			Phase:        PhaseStarting,
+			BalanceCents: item.AmountCents,
+		})
+	}
+
+	for year := 1; year <= request.SavingYears; year++ {
+		for index, item := range items {
+			growthCents := roundBasisPointGrowth(balances[index], item.AnnualReturnRateBasisPoints)
+			currentBalance := balances[index] + growthCents + item.AnnualContributionCents
+			itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
+				Year:              year,
+				Phase:             PhaseSaving,
+				BalanceCents:      currentBalance,
+				ContributionCents: item.AnnualContributionCents,
+				GrowthCents:       growthCents,
+			})
+			balances[index] = currentBalance
+		}
+	}
+
+	for drawdownYear := 1; drawdownYear <= request.DrawdownYears; drawdownYear++ {
+		year := request.SavingYears + drawdownYear
+		priorBalances := append([]int64(nil), balances...)
+		withdrawalAllocations := allocateWithdrawal(request.AnnualWithdrawalCents, priorBalances)
+		for index, item := range items {
+			drawdownReturnRate := item.AnnualReturnRateBasisPoints
+			if item.DrawdownAnnualReturnRateBasisPoints != nil {
+				drawdownReturnRate = *item.DrawdownAnnualReturnRateBasisPoints
+			}
+			growthCents := roundBasisPointGrowth(balances[index], drawdownReturnRate)
+			availableBalance := balances[index] + growthCents
+			if availableBalance < 0 {
+				availableBalance = 0
+			}
+			withdrawalCents := withdrawalAllocations[index]
+			unfundedWithdrawalCents := int64(0)
+			if withdrawalCents > availableBalance {
+				unfundedWithdrawalCents = withdrawalCents - availableBalance
+				withdrawalCents = availableBalance
+			}
+			currentBalance := availableBalance - withdrawalCents
+			itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
+				Year:                    year,
+				Phase:                   PhaseDrawdown,
+				BalanceCents:            currentBalance,
+				WithdrawalCents:         withdrawalCents,
+				GrowthCents:             growthCents,
+				UnfundedWithdrawalCents: unfundedWithdrawalCents,
+			})
+			balances[index] = currentBalance
+		}
+	}
+
+	for index, item := range items {
+		projected := newProjectedItem(item, itemYearlyBalances[index])
+		addToTotals(projection.Totals, projected.YearlyBalances)
+		projection.Items = append(projection.Items, projected)
+	}
+
+	return projection
 }
 
 func validate(request Request) error {
 	var problems []string
-	if request.Years < minimumYears || request.Years > maximumYears {
-		problems = append(problems, fmt.Sprintf("years must be between %d and %d", minimumYears, maximumYears))
+	phaseProjection := usesPhaseProjection(request)
+	if request.Years != 0 && phaseProjection {
+		problems = append(problems, "years and savingYears/drawdownYears are mutually exclusive")
+	}
+	if !phaseProjection {
+		if request.Years < minimumYears || request.Years > maximumYears {
+			problems = append(problems, fmt.Sprintf("years must be between %d and %d", minimumYears, maximumYears))
+		}
+	} else {
+		if request.SavingYears < 0 || request.SavingYears > maximumYears {
+			problems = append(problems, fmt.Sprintf("savingYears must be between 0 and %d", maximumYears))
+		}
+		if request.DrawdownYears < 0 || request.DrawdownYears > maximumYears {
+			problems = append(problems, fmt.Sprintf("drawdownYears must be between 0 and %d", maximumYears))
+		}
+		if request.SavingYears+request.DrawdownYears < minimumYears {
+			problems = append(problems, "savingYears and drawdownYears must include at least one projected year")
+		}
+		if request.AnnualWithdrawalCents < 0 {
+			problems = append(problems, "annualWithdrawalCents must be greater than or equal to 0")
+		}
+		if request.DrawdownYears > 0 && request.AnnualWithdrawalCents <= 0 {
+			problems = append(problems, "annualWithdrawalCents is required when drawdownYears is greater than 0")
+		}
 	}
 	if len(request.Items) == 0 {
 		problems = append(problems, "items are required")
@@ -146,6 +265,9 @@ func validate(request Request) error {
 		if item.AnnualReturnRateBasisPoints < minimumAnnualReturnRateBasisPoints || item.AnnualReturnRateBasisPoints > maximumAnnualReturnRateBasisPoints {
 			problems = append(problems, fmt.Sprintf("items[%d].annualReturnRateBasisPoints must be between %d and %d", index, minimumAnnualReturnRateBasisPoints, maximumAnnualReturnRateBasisPoints))
 		}
+		if item.DrawdownAnnualReturnRateBasisPoints != nil && (*item.DrawdownAnnualReturnRateBasisPoints < minimumAnnualReturnRateBasisPoints || *item.DrawdownAnnualReturnRateBasisPoints > maximumAnnualReturnRateBasisPoints) {
+			problems = append(problems, fmt.Sprintf("items[%d].drawdownAnnualReturnRateBasisPoints must be between %d and %d", index, minimumAnnualReturnRateBasisPoints, maximumAnnualReturnRateBasisPoints))
+		}
 		if item.AnnualContributionCents < 0 {
 			problems = append(problems, fmt.Sprintf("items[%d].annualContributionCents must be greater than or equal to 0", index))
 		}
@@ -160,7 +282,19 @@ func validate(request Request) error {
 	return nil
 }
 
-func calculateItemBalances(input ItemInput, years int) []YearlyBalance {
+func newProjectedItem(input ItemInput, yearlyBalances []YearlyBalance) ProjectedItem {
+	return ProjectedItem{
+		ID:                                  input.ID,
+		Name:                                input.Name,
+		StartingAmountCents:                 input.AmountCents,
+		AnnualReturnRateBasisPoints:         input.AnnualReturnRateBasisPoints,
+		DrawdownAnnualReturnRateBasisPoints: input.DrawdownAnnualReturnRateBasisPoints,
+		AnnualContributionCents:             input.AnnualContributionCents,
+		YearlyBalances:                      yearlyBalances,
+	}
+}
+
+func calculateAccumulationItemBalances(input ItemInput, years int) []YearlyBalance {
 	balances := make([]YearlyBalance, 0, years+1)
 	previousBalance := input.AmountCents
 	balances = append(balances, YearlyBalance{
@@ -181,6 +315,70 @@ func calculateItemBalances(input ItemInput, years int) []YearlyBalance {
 	}
 
 	return balances
+}
+
+func addToTotals(totals []YearlyBalance, balances []YearlyBalance) {
+	for year, balance := range balances {
+		totals[year].BalanceCents += balance.BalanceCents
+		totals[year].ContributionCents += balance.ContributionCents
+		totals[year].WithdrawalCents += balance.WithdrawalCents
+		totals[year].GrowthCents += balance.GrowthCents
+		totals[year].UnfundedWithdrawalCents += balance.UnfundedWithdrawalCents
+	}
+}
+
+func phaseForYear(year int, savingYears int) Phase {
+	if year == 0 {
+		return PhaseStarting
+	}
+	if year <= savingYears {
+		return PhaseSaving
+	}
+	return PhaseDrawdown
+}
+
+func usesPhaseProjection(request Request) bool {
+	return request.SavingYears != 0 || request.DrawdownYears != 0 || request.AnnualWithdrawalCents != 0
+}
+
+func allocateWithdrawal(withdrawalCents int64, priorBalances []int64) []int64 {
+	allocations := make([]int64, len(priorBalances))
+	if withdrawalCents <= 0 || len(priorBalances) == 0 {
+		return allocations
+	}
+
+	totalPriorBalance := int64(0)
+	for _, balance := range priorBalances {
+		if balance > 0 {
+			totalPriorBalance += balance
+		}
+	}
+	if totalPriorBalance <= 0 {
+		return allocations
+	}
+
+	allocated := int64(0)
+	for index, balance := range priorBalances {
+		if balance <= 0 {
+			continue
+		}
+		allocations[index] = withdrawalCents * balance / totalPriorBalance
+		allocated += allocations[index]
+	}
+
+	remaining := withdrawalCents - allocated
+	for index := range allocations {
+		if remaining == 0 {
+			break
+		}
+		if priorBalances[index] <= 0 {
+			continue
+		}
+		allocations[index]++
+		remaining--
+	}
+
+	return allocations
 }
 
 func roundBasisPointGrowth(balanceCents int64, annualReturnRateBasisPoints int) int64 {
