@@ -297,9 +297,9 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 18: Drawdown projection UI
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-18-drawdown-projection-ui`
+- **Pull Request:** [financials-ui #6](https://github.com/zachfire9/financials-ui/pull/6)
 - Add saving-years, drawdown-years, annual-withdrawal, and withdrawal-inflation controls to `financials-ui` after the API supports them.
 - Show phase labels in the existing year-grouped projection results.
 - Keep charts optional until the drawdown table workflow is proven.
