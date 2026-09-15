@@ -25,11 +25,12 @@ const (
 
 // Request contains the pure domain inputs needed to calculate a whole-year projection.
 type Request struct {
-	Years                 int         `json:"years"`
-	SavingYears           int         `json:"-"`
-	DrawdownYears         int         `json:"-"`
-	AnnualWithdrawalCents int64       `json:"-"`
-	Items                 []ItemInput `json:"items"`
+	Years                                    int         `json:"years"`
+	SavingYears                              int         `json:"-"`
+	DrawdownYears                            int         `json:"-"`
+	AnnualWithdrawalCents                    int64       `json:"-"`
+	AnnualWithdrawalInflationRateBasisPoints int         `json:"-"`
+	Items                                    []ItemInput `json:"items"`
 }
 
 // ItemInput is one configurable financial item used by the projection engine.
@@ -169,10 +170,11 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 		}
 	}
 
+	annualWithdrawalCents := request.AnnualWithdrawalCents
 	for drawdownYear := 1; drawdownYear <= request.DrawdownYears; drawdownYear++ {
 		year := request.SavingYears + drawdownYear
 		priorBalances := append([]int64(nil), balances...)
-		withdrawalAllocations := allocateWithdrawal(request.AnnualWithdrawalCents, priorBalances)
+		withdrawalAllocations := allocateWithdrawal(annualWithdrawalCents, priorBalances)
 		for index, item := range items {
 			drawdownReturnRate := item.AnnualReturnRateBasisPoints
 			if item.DrawdownAnnualReturnRateBasisPoints != nil {
@@ -200,6 +202,7 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 			})
 			balances[index] = currentBalance
 		}
+		annualWithdrawalCents += roundBasisPointGrowth(annualWithdrawalCents, request.AnnualWithdrawalInflationRateBasisPoints)
 	}
 
 	for index, item := range items {
@@ -236,6 +239,9 @@ func validate(request Request) error {
 		}
 		if request.DrawdownYears > 0 && request.AnnualWithdrawalCents <= 0 {
 			problems = append(problems, "annualWithdrawalCents is required when drawdownYears is greater than 0")
+		}
+		if request.AnnualWithdrawalInflationRateBasisPoints < 0 || request.AnnualWithdrawalInflationRateBasisPoints > maximumAnnualReturnRateBasisPoints {
+			problems = append(problems, fmt.Sprintf("annualWithdrawalInflationRateBasisPoints must be between 0 and %d", maximumAnnualReturnRateBasisPoints))
 		}
 	}
 	if len(request.Items) == 0 {
@@ -338,7 +344,7 @@ func phaseForYear(year int, savingYears int) Phase {
 }
 
 func usesPhaseProjection(request Request) bool {
-	return request.SavingYears != 0 || request.DrawdownYears != 0 || request.AnnualWithdrawalCents != 0
+	return request.SavingYears != 0 || request.DrawdownYears != 0 || request.AnnualWithdrawalCents != 0 || request.AnnualWithdrawalInflationRateBasisPoints != 0
 }
 
 func allocateWithdrawal(withdrawalCents int64, priorBalances []int64) []int64 {

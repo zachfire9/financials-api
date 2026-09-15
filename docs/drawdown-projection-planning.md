@@ -40,6 +40,7 @@ The existing `years` field can remain supported as a v1-compatible alias for acc
   "savingYears": 10,
   "drawdownYears": 30,
   "annualWithdrawalCents": 6000000,
+  "annualWithdrawalInflationRateBasisPoints": 300,
   "items": [
     {
       "name": "Example brokerage",
@@ -61,6 +62,7 @@ Request rules to confirm before implementation:
 - At least one of `savingYears` or `drawdownYears` must be greater than `0`.
 - `years` should remain accepted for the current UI and should be mutually exclusive with `savingYears`/`drawdownYears`.
 - `annualWithdrawalCents` should be required when `drawdownYears` is greater than `0`.
+- `annualWithdrawalInflationRateBasisPoints` should be optional and default to `0`; a `300` value models a $60,000 first-year withdrawal as $61,800 in the second drawdown year and $63,654 in the third drawdown year.
 - `drawdownAnnualReturnRateBasisPoints` should be optional per item; if omitted, drawdown years should keep using that item's `annualReturnRateBasisPoints`.
 - Hypothetical `items` should keep the current behavior: validate but do not save.
 - Omitted or empty `items` should keep using the repository-backed financial items.
@@ -154,7 +156,12 @@ These decisions materially affect implementation, so the planning step should no
    - Recommended v1: set contributions to zero during drawdown years.
    - Alternative: allow continuing per-item contributions even during drawdown.
 
-6. **Default drawdown horizon**
+6. **Withdrawal inflation**
+   - Recommended v1: apply `annualWithdrawalInflationRateBasisPoints` to the annual withdrawal amount after each drawdown year.
+   - Example: `annualWithdrawalCents: 6000000` and `annualWithdrawalInflationRateBasisPoints: 300` produce drawdown requests of $60,000.00, $61,800.00, $63,654.00, etc.
+   - Default to `0` so existing fixed-withdrawal calculations remain stable.
+
+7. **Default drawdown horizon**
    - Recommended v1: no implicit drawdown; `drawdownYears` defaults to `0` unless the UI/user supplies it.
    - If Zach wants a one-field retirement projection later, the UI can provide a default such as `30` years.
 
@@ -162,20 +169,20 @@ These decisions materially affect implementation, so the planning step should no
 
 ### Step 16: Drawdown calculation engine
 
-- Extend `internal/projections` models with explicit phase fields and optional per-item drawdown return rates.
-- Add strict RED/GREEN tests for saving-only compatibility, saving plus drawdown, per-item drawdown return rates, default allocation behavior, zero-floor/depletion behavior, validation, rounding, and response totals.
+- Extend `internal/projections` models with explicit phase fields, optional per-item drawdown return rates, and optional withdrawal inflation.
+- Add strict RED/GREEN tests for saving-only compatibility, saving plus drawdown, per-item drawdown return rates, inflation-adjusted withdrawals, default allocation behavior, zero-floor/depletion behavior, validation, rounding, and response totals.
 - Preserve current `years` accumulation behavior for existing callers.
 - Keep HTTP wiring out of this step.
 
 ### Step 17: Drawdown projection API contract
 
 - Extend `POST /projections` request parsing and JSON response tags.
-- Add endpoint tests for `savingYears`, `drawdownYears`, `annualWithdrawalCents`, `drawdownAnnualReturnRateBasisPoints`, compatibility with `years`, unknown field rejection, and repository-backed vs hypothetical item behavior.
+- Add endpoint tests for `savingYears`, `drawdownYears`, `annualWithdrawalCents`, `annualWithdrawalInflationRateBasisPoints`, `drawdownAnnualReturnRateBasisPoints`, compatibility with `years`, unknown field rejection, and repository-backed vs hypothetical item behavior.
 - Update README examples with fake data only.
 
 ### Step 18: Drawdown projection UI
 
-- Add controls for saving years, optional drawdown years, and annual withdrawal.
+- Add controls for saving years, optional drawdown years, annual withdrawal, and optional annual withdrawal inflation rate.
 - Render saving/drawdown phase labels in the projection results.
 - Preserve stale-data fallback and year-grouped item rows.
 - Keep charts optional until the contract is proven through table output.
@@ -184,7 +191,7 @@ These decisions materially affect implementation, so the planning step should no
 
 - Tax-aware withdrawal ordering.
 - User-configured per-account withdrawal schedules, fixed dollar amounts, and account-priority rules such as Roth-first drawdown before age 65. The v1 model should leave room for this by treating proportional allocation as a fallback strategy, not as the permanent API shape.
-- Inflation-adjusted spending.
+- Broader inflation modeling beyond annual withdrawal growth, such as inflation-adjusted contributions, account returns, income streams, or tax brackets.
 - Social Security, pension, or income streams.
 - Required minimum distributions.
 - Account categories and tax buckets.
