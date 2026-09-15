@@ -282,7 +282,7 @@ Track each step as a living checklist. Each implementation PR should update this
 - [ ] **Status:** Pending
 - **Branch:** TBD
 - **Pull Request:** TBD
-- Extend `internal/projections` test-first with explicit saving/drawdown phases.
+- Extend `internal/projections` test-first with explicit saving/drawdown phases and optional per-item drawdown return rates.
 - Preserve v1 accumulation-only behavior while adding annual withdrawals and phase-aware yearly totals.
 - Keep HTTP handler wiring out of this step.
 
@@ -314,7 +314,7 @@ Track each step as a living checklist. Each implementation PR should update this
 - UI stack recommendation: Vite + React + TypeScript, with static build output suitable for AWS Amplify later.
 - Local UI/API smoke testing should use placeholder bind-address docs and keep real LAN details out of git.
 - Projection v1 request/response shape is implemented for accumulation-only projections.
-- Drawdown v2 questions are proposed in `docs/drawdown-projection-planning.md`, including withdrawal timing, allocation order, depletion behavior, contribution behavior during drawdown, and default drawdown horizon.
+- Drawdown v2 questions are proposed in `docs/drawdown-projection-planning.md`, including per-item drawdown return rates, withdrawal timing, allocation order, depletion behavior, contribution behavior during drawdown, and default drawdown horizon.
 
 ## Verification expectations
 

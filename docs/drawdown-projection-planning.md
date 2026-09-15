@@ -25,6 +25,7 @@ Keep the next version small and deterministic:
 
 - Split the horizon into `savingYears` and optional `drawdownYears`.
 - Preserve the existing accumulation math during saving years.
+- Allow each item to use a different return assumption once drawdown starts.
 - Continue returning Year `0` as the starting state.
 - Use annual periods only.
 - Keep all outputs on demand; do not persist scenarios yet.
@@ -45,6 +46,7 @@ The existing `years` field can remain supported as a v1-compatible alias for acc
       "amountCents": 1250000,
       "currency": "USD",
       "annualReturnRateBasisPoints": 700,
+      "drawdownAnnualReturnRateBasisPoints": 400,
       "annualContributionCents": 300000,
       "sortOrder": 1
     }
@@ -59,6 +61,7 @@ Request rules to confirm before implementation:
 - At least one of `savingYears` or `drawdownYears` must be greater than `0`.
 - `years` should remain accepted for the current UI and should be mutually exclusive with `savingYears`/`drawdownYears`.
 - `annualWithdrawalCents` should be required when `drawdownYears` is greater than `0`.
+- `drawdownAnnualReturnRateBasisPoints` should be optional per item; if omitted, drawdown years should keep using that item's `annualReturnRateBasisPoints`.
 - Hypothetical `items` should keep the current behavior: validate but do not save.
 - Omitted or empty `items` should keep using the repository-backed financial items.
 - All projected items must use one currency.
@@ -79,6 +82,7 @@ Add phase metadata to yearly balances and totals while keeping existing amount f
       "name": "Example brokerage",
       "startingAmountCents": 1250000,
       "annualReturnRateBasisPoints": 700,
+      "drawdownAnnualReturnRateBasisPoints": 400,
       "annualContributionCents": 300000,
       "yearlyBalances": [
         {
@@ -127,23 +131,30 @@ Compatibility option: `years` can remain in the response for v1 accumulation-onl
 
 These decisions materially affect implementation, so the planning step should not silently bake them into the engine:
 
-1. **Withdrawal timing**
+1. **Drawdown return rates**
+   - Recommended v1: add optional `drawdownAnnualReturnRateBasisPoints` per item.
+   - If omitted, default to the item's accumulation `annualReturnRateBasisPoints` so existing callers do not need extra fields.
+   - This keeps conservative retirement-return assumptions possible now without adding account categories or tax modeling.
+
+2. **Withdrawal timing**
    - Recommended default: apply growth first, then subtract the annual withdrawal at the end of the year.
    - Alternative: subtract at the beginning of the year, then grow the remaining balance.
 
-2. **Withdrawal allocation across items**
-   - Recommended v1: withdraw proportionally from each item based on the prior year's balance.
-   - Alternatives: fixed priority order, user-configured withdrawal order, or one combined portfolio without per-item drawdown allocation.
+3. **Withdrawal allocation across items**
+   - Recommended v1: support a simple default allocation first, then add explicit per-account withdrawal strategy later.
+   - Better default than an even split: withdraw proportionally from each item based on the prior year's balance, because it is deterministic and works with any number of items.
+   - Future strategy shape should support account priority and/or per-item withdrawal amounts, for example withdrawing from a Roth IRA before other accounts for early-retirement years.
+   - Avoid naming the v1 proportional allocation as the final retirement strategy; keep it as the fallback when no explicit strategy is supplied.
 
-3. **Depletion behavior**
+4. **Depletion behavior**
    - Recommended v1: floor individual item balances at zero and report any unfunded withdrawal amount.
    - Alternative: allow negative balances to make the shortfall obvious in the same balance field.
 
-4. **Contributions during drawdown**
+5. **Contributions during drawdown**
    - Recommended v1: set contributions to zero during drawdown years.
    - Alternative: allow continuing per-item contributions even during drawdown.
 
-5. **Default drawdown horizon**
+6. **Default drawdown horizon**
    - Recommended v1: no implicit drawdown; `drawdownYears` defaults to `0` unless the UI/user supplies it.
    - If Zach wants a one-field retirement projection later, the UI can provide a default such as `30` years.
 
@@ -151,15 +162,15 @@ These decisions materially affect implementation, so the planning step should no
 
 ### Step 16: Drawdown calculation engine
 
-- Extend `internal/projections` models with explicit phase fields.
-- Add strict RED/GREEN tests for saving-only compatibility, saving plus drawdown, proportional withdrawal allocation, zero-floor/depletion behavior, validation, rounding, and response totals.
+- Extend `internal/projections` models with explicit phase fields and optional per-item drawdown return rates.
+- Add strict RED/GREEN tests for saving-only compatibility, saving plus drawdown, per-item drawdown return rates, default allocation behavior, zero-floor/depletion behavior, validation, rounding, and response totals.
 - Preserve current `years` accumulation behavior for existing callers.
 - Keep HTTP wiring out of this step.
 
 ### Step 17: Drawdown projection API contract
 
 - Extend `POST /projections` request parsing and JSON response tags.
-- Add endpoint tests for `savingYears`, `drawdownYears`, `annualWithdrawalCents`, compatibility with `years`, unknown field rejection, and repository-backed vs hypothetical item behavior.
+- Add endpoint tests for `savingYears`, `drawdownYears`, `annualWithdrawalCents`, `drawdownAnnualReturnRateBasisPoints`, compatibility with `years`, unknown field rejection, and repository-backed vs hypothetical item behavior.
 - Update README examples with fake data only.
 
 ### Step 18: Drawdown projection UI
@@ -172,6 +183,7 @@ These decisions materially affect implementation, so the planning step should no
 ## Out of scope for the drawdown v1 work
 
 - Tax-aware withdrawal ordering.
+- User-configured per-account withdrawal schedules, fixed dollar amounts, and account-priority rules such as Roth-first drawdown before age 65. The v1 model should leave room for this by treating proportional allocation as a fallback strategy, not as the permanent API shape.
 - Inflation-adjusted spending.
 - Social Security, pension, or income streams.
 - Required minimum distributions.
