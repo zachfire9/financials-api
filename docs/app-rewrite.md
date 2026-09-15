@@ -251,8 +251,8 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 13: Projection API endpoint
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-13-projection-api-endpoint`
 - **Pull Request:** TBD
 - Add `POST /projections` to the HTTP handler tree.
 - Support repository-backed projections when `items` is omitted.

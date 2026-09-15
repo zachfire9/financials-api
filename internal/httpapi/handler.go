@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/zachfire9/financials-api/internal/financialitems"
+	"github.com/zachfire9/financials-api/internal/projections"
 )
 
 // NewHandler builds the HTTP handler tree for the API.
@@ -37,6 +38,7 @@ func NewHandlerWithRepositoryAndCORS(repository financialitems.Repository, corsC
 	mux.HandleFunc("GET /financial-items/{id}", api.handleFinancialItemsGet)
 	mux.HandleFunc("PUT /financial-items/{id}", api.handleFinancialItemsUpdate)
 	mux.HandleFunc("DELETE /financial-items/{id}", api.handleFinancialItemsDelete)
+	mux.HandleFunc("POST /projections", api.handleProjectionsCreate)
 	return withCORS(mux, corsConfig)
 }
 
@@ -142,6 +144,47 @@ func (api *apiHandler) handleFinancialItemsDelete(w http.ResponseWriter, r *http
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (api *apiHandler) handleProjectionsCreate(w http.ResponseWriter, r *http.Request) {
+	var request projections.Request
+	if err := decodeJSONBody(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if len(request.Items) == 0 {
+		items, err := api.financialItems.List(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		request.Items = projectionInputsFromFinancialItems(items)
+	}
+
+	projection, err := projections.Calculate(request)
+	if err != nil {
+		writeProjectionError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, projection)
+}
+
+func projectionInputsFromFinancialItems(items []financialitems.FinancialItem) []projections.ItemInput {
+	inputs := make([]projections.ItemInput, 0, len(items))
+	for _, item := range items {
+		inputs = append(inputs, projections.ItemInput{
+			ID:                          item.ID,
+			Name:                        item.Name,
+			AmountCents:                 item.AmountCents,
+			Currency:                    item.Currency,
+			AnnualReturnRateBasisPoints: item.AnnualReturnRateBasisPoints,
+			AnnualContributionCents:     item.AnnualContributionCents,
+			SortOrder:                   item.SortOrder,
+		})
+	}
+	return inputs
+}
+
 func decodeJSONBody(r *http.Request, destination any) error {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -158,6 +201,15 @@ func writeRepositoryError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, err)
 	}
+}
+
+func writeProjectionError(w http.ResponseWriter, err error) {
+	var validationError projections.ValidationError
+	if errors.As(err, &validationError) {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeError(w, http.StatusInternalServerError, err)
 }
 
 func writeError(w http.ResponseWriter, statusCode int, err error) {

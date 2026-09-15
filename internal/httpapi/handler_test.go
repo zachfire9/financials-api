@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/zachfire9/financials-api/internal/financialitems"
+	"github.com/zachfire9/financials-api/internal/projections"
 )
 
 func TestHealthEndpoint(t *testing.T) {
@@ -268,6 +269,157 @@ func TestFinancialItemsEndpointReturnsNotFoundForMissingItems(t *testing.T) {
 				t.Fatalf("expected status %d, got %d with body %s", http.StatusNotFound, recorder.Code, recorder.Body.String())
 			}
 		})
+	}
+}
+
+func TestProjectionEndpointCalculatesHypotheticalItemsWithoutSaving(t *testing.T) {
+	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/projections", strings.NewReader(`{
+		"years":2,
+		"items":[
+			{
+				"name":"Example brokerage",
+				"amountCents":20000,
+				"currency":"USD",
+				"annualReturnRateBasisPoints":1000,
+				"annualContributionCents":2000,
+				"sortOrder":2
+			},
+			{
+				"name":"Example savings",
+				"amountCents":10000,
+				"currency":"USD",
+				"annualReturnRateBasisPoints":500,
+				"annualContributionCents":1000,
+				"sortOrder":1
+			}
+		]
+	}`))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	var projection projections.Projection
+	decodeJSON(t, recorder, &projection)
+	if projection.Years != 2 || projection.Currency != "USD" {
+		t.Fatalf("unexpected projection metadata: %+v", projection)
+	}
+	if len(projection.Items) != 2 {
+		t.Fatalf("expected two projected items, got %d", len(projection.Items))
+	}
+	if projection.Items[0].Name != "Example savings" || projection.Items[1].Name != "Example brokerage" {
+		t.Fatalf("expected projection items sorted by sortOrder, got %+v", projection.Items)
+	}
+	assertProjectionBalance(t, projection.Items[0].YearlyBalances[2], 2, 13075, 1000, 575)
+	assertProjectionBalance(t, projection.Items[1].YearlyBalances[2], 2, 28400, 2000, 2400)
+	assertProjectionBalance(t, projection.Totals[2], 2, 41475, 3000, 2975)
+
+	listRecorder := httptest.NewRecorder()
+	listRequest := httptest.NewRequest(http.MethodGet, "/financial-items", nil)
+	handler.ServeHTTP(listRecorder, listRequest)
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("expected financial item list status %d, got %d", http.StatusOK, listRecorder.Code)
+	}
+	var listed []financialitems.FinancialItem
+	decodeJSON(t, listRecorder, &listed)
+	if len(listed) != 0 {
+		t.Fatalf("expected hypothetical projection items not to be saved, got %+v", listed)
+	}
+}
+
+func TestProjectionEndpointUsesRepositoryItemsWhenItemsOmittedOrEmpty(t *testing.T) {
+	repository := financialitems.NewInMemoryRepository()
+	handler := NewHandlerWithRepository(repository)
+	created := createFinancialItem(t, handler, `{
+		"name":"Stored brokerage",
+		"amountCents":20000,
+		"currency":"USD",
+		"annualReturnRateBasisPoints":1000,
+		"annualContributionCents":2000,
+		"sortOrder":1
+	}`)
+
+	for _, body := range []string{`{"years":1}`, `{"years":1,"items":[]}`} {
+		t.Run(body, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, "/projections", strings.NewReader(body))
+			handler.ServeHTTP(recorder, request)
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+			}
+			var projection projections.Projection
+			decodeJSON(t, recorder, &projection)
+			if len(projection.Items) != 1 {
+				t.Fatalf("expected one repository-backed projection item, got %d", len(projection.Items))
+			}
+			if projection.Items[0].ID != created.ID || projection.Items[0].Name != "Stored brokerage" {
+				t.Fatalf("expected repository item identity in projection, got %+v", projection.Items[0])
+			}
+			assertProjectionBalance(t, projection.Items[0].YearlyBalances[1], 1, 24000, 2000, 2000)
+		})
+	}
+}
+
+func TestProjectionEndpointReturnsValidationFailures(t *testing.T) {
+	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/projections", strings.NewReader(`{
+		"years":0,
+		"items":[
+			{
+				"name":" ",
+				"amountCents":-1,
+				"currency":"usd",
+				"annualReturnRateBasisPoints":100001,
+				"annualContributionCents":-1,
+				"sortOrder":-1
+			}
+		]
+	}`))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	}
+	var response errorResponse
+	decodeJSON(t, recorder, &response)
+	for _, want := range []string{"years", "name", "amountCents", "currency", "annualReturnRateBasisPoints", "annualContributionCents", "sortOrder"} {
+		if !strings.Contains(response.Error, want) {
+			t.Fatalf("expected projection validation response to contain %q, got %q", want, response.Error)
+		}
+	}
+}
+
+func TestProjectionEndpointRejectsUnknownFields(t *testing.T) {
+	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/projections", strings.NewReader(`{
+		"years":10,
+		"unexpected":"field"
+	}`))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	}
+	var response errorResponse
+	decodeJSON(t, recorder, &response)
+	if !strings.Contains(response.Error, "unknown field") {
+		t.Fatalf("expected unknown field error, got %q", response.Error)
+	}
+}
+
+func assertProjectionBalance(t *testing.T, got projections.YearlyBalance, year int, balanceCents int64, contributionCents int64, growthCents int64) {
+	t.Helper()
+	if got.Year != year || got.BalanceCents != balanceCents || got.ContributionCents != contributionCents || got.GrowthCents != growthCents {
+		t.Fatalf("unexpected projection balance: got %+v, want year=%d balance=%d contribution=%d growth=%d", got, year, balanceCents, contributionCents, growthCents)
 	}
 }
 
