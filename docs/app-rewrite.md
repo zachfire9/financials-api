@@ -195,18 +195,18 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 7: Repurpose `financials-ui` as a basic React app shell
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-07-react-app-shell`
+- **Pull Request:** [financials-ui #1](https://github.com/zachfire9/financials-ui/pull/1)
 - Replace the old Django/Heroku-era UI with a Vite + React + TypeScript app.
 - Keep the first UI branch focused on project scaffolding, public-safe config examples, local run/build commands, and a minimal app shell.
 - Use static-hosting-friendly conventions so the app can later run in AWS Amplify (`npm run build` output in `dist/`).
 
 ### Step 8: Wire UI to the financial-items API
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-08-financial-items-crud`
+- **Pull Request:** [financials-ui #2](https://github.com/zachfire9/financials-ui/pull/2)
 - Add a typed API client for the existing `/financial-items` contract.
 - Implement list/create/update/delete flows against the running local API.
 - Add basic loading, empty, validation-error, and stale-data/transient-error handling.
@@ -214,24 +214,33 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 9: Local home-network smoke test
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-09-local-network-smoke-test`
+- **Pull Request:** [financials-ui #3](https://github.com/zachfire9/financials-ui/pull/3)
 - Run the API and UI dev servers on the development machine using placeholder bind-address documentation.
 - Configure the UI dev proxy so browser calls can go through the UI server during local testing.
 - Verify another device on the same private network can load the UI and exercise financial item CRUD.
 - Keep real LAN addresses, hostnames, firewall/router details, and machine-specific notes out of git.
 
-### Step 10: API CORS and deploy-readiness prep
+### Step 10: Financial-items UI polish
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-10-ui-polish-drag-sort`
+- **Pull Request:** [financials-ui #4](https://github.com/zachfire9/financials-ui/pull/4)
+- Remove the intro/hero container.
+- Keep sort order hidden from the form and support drag-and-drop reordering.
+- Display API-backed cents values as human-readable dollar inputs while editing.
+
+### Step 11: API CORS and deploy-readiness prep
+
+- [x] **Status:** Completed
+- **Branch:** `step-11-api-cors-deploy-readiness`
+- **Pull Request:** [financials-api #7](https://github.com/zachfire9/financials-api/pull/7)
 - Add API CORS support and configuration only after the local proxy-based UI workflow is proven.
 - Document placeholder allowed-origin settings for future static hosting such as AWS Amplify.
 - Keep real deployed origins and private runtime values in ignored local config or private operator notes.
 
-### Step 11: Projection calculation engine
+### Step 12: Projection calculation engine
 
 - [ ] **Status:** Pending
 - **Branch:** TBD
@@ -240,7 +249,7 @@ Track each step as a living checklist. Each implementation PR should update this
 - Implement deterministic whole-year projection calculations test-first.
 - Cover per-item yearly balances, aggregate totals, validation, currency mismatches, negative return assumptions, and rounding behavior.
 
-### Step 12: Projection API endpoint
+### Step 13: Projection API endpoint
 
 - [ ] **Status:** Pending
 - **Branch:** TBD
@@ -250,7 +259,7 @@ Track each step as a living checklist. Each implementation PR should update this
 - Support caller-supplied hypothetical items without saving them.
 - Document fake/example request and response payloads.
 
-### Step 13: Projection UI
+### Step 14: Projection UI
 
 - [ ] **Status:** Pending
 - **Branch:** TBD

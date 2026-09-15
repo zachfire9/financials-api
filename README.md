@@ -7,11 +7,12 @@ The first implementation phase focuses on the API skeleton and generic financial
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: projection planning and UI-first sequence adjustment
+- Current branch focus: API CORS and deploy-readiness prep
 - Implemented endpoints: `GET /health` plus `/financial-items` create/list/read/update/delete behavior
 - Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, and repository behavior tests
 - Implemented local storage options: process-local memory and gitignored JSON file storage
-- Next planned area: basic `financials-ui` React app shell before projection calculation logic
+- Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
+- Next planned area: projection calculation logic
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -44,6 +45,7 @@ Supported config values:
 - `FINANCIALS_API_ADDR`: Go `http.Server` bind address, default `:8080`
 - `FINANCIALS_STORAGE_DRIVER`: `memory` or `json`, default `memory`
 - `FINANCIALS_STORAGE_PATH`: required when `FINANCIALS_STORAGE_DRIVER=json`, for example `./data/financial-items.json`
+- `FINANCIALS_ALLOWED_ORIGINS`: optional comma-separated browser origins allowed to call the API directly, blank by default for the local Vite proxy workflow
 
 Run tests:
 
@@ -70,6 +72,24 @@ $env:FINANCIALS_STORAGE_DRIVER="json"; $env:FINANCIALS_STORAGE_PATH="./data/fina
 ```
 
 Do not commit the generated `/data/financial-items.json` file.
+
+## CORS and deploy-readiness
+
+The local Vite development workflow still uses the UI dev-server proxy, so CORS can stay disabled by leaving `FINANCIALS_ALLOWED_ORIGINS` blank.
+
+When a future static-hosted UI needs to call this API directly, set placeholder-style allowed origins in local/private runtime config:
+
+```powershell
+$env:FINANCIALS_ALLOWED_ORIGINS="https://<static-ui-host.example>"; go run ./cmd/api
+```
+
+Multiple origins can be comma-separated:
+
+```env
+FINANCIALS_ALLOWED_ORIGINS=https://<static-ui-host.example>,http://localhost:5173
+```
+
+Keep real deployed origins, private LAN hostnames/IPs, and environment-specific deployment values in ignored `.env` files or private operator notes, not in committed docs.
 
 Check the health endpoint:
 
