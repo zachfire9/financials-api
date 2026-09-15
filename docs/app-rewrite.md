@@ -288,8 +288,8 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 17: Drawdown projection API contract
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-17-drawdown-projection-api-contract`
 - **Pull Request:** TBD
 - Extend `POST /projections` request/response handling for `savingYears`, optional `drawdownYears`, `annualWithdrawalCents`, `annualWithdrawalInflationRateBasisPoints`, and drawdown-specific validation.
 - Preserve existing `years` requests for the current UI until the UI migrates.

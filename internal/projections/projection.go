@@ -26,10 +26,10 @@ const (
 // Request contains the pure domain inputs needed to calculate a whole-year projection.
 type Request struct {
 	Years                                    int         `json:"years"`
-	SavingYears                              int         `json:"-"`
-	DrawdownYears                            int         `json:"-"`
-	AnnualWithdrawalCents                    int64       `json:"-"`
-	AnnualWithdrawalInflationRateBasisPoints int         `json:"-"`
+	SavingYears                              int         `json:"savingYears"`
+	DrawdownYears                            int         `json:"drawdownYears"`
+	AnnualWithdrawalCents                    int64       `json:"annualWithdrawalCents"`
+	AnnualWithdrawalInflationRateBasisPoints int         `json:"annualWithdrawalInflationRateBasisPoints"`
 	Items                                    []ItemInput `json:"items"`
 }
 
@@ -40,7 +40,7 @@ type ItemInput struct {
 	AmountCents                         int64  `json:"amountCents"`
 	Currency                            string `json:"currency"`
 	AnnualReturnRateBasisPoints         int    `json:"annualReturnRateBasisPoints"`
-	DrawdownAnnualReturnRateBasisPoints *int   `json:"-"`
+	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
 	SortOrder                           int    `json:"sortOrder"`
 }
@@ -48,8 +48,8 @@ type ItemInput struct {
 // Projection is the deterministic whole-year projection result.
 type Projection struct {
 	Years         int             `json:"years"`
-	SavingYears   int             `json:"-"`
-	DrawdownYears int             `json:"-"`
+	SavingYears   int             `json:"savingYears"`
+	DrawdownYears int             `json:"drawdownYears"`
 	Currency      string          `json:"currency"`
 	Items         []ProjectedItem `json:"items"`
 	Totals        []YearlyBalance `json:"totals"`
@@ -61,7 +61,7 @@ type ProjectedItem struct {
 	Name                                string          `json:"name"`
 	StartingAmountCents                 int64           `json:"startingAmountCents"`
 	AnnualReturnRateBasisPoints         int             `json:"annualReturnRateBasisPoints"`
-	DrawdownAnnualReturnRateBasisPoints *int            `json:"-"`
+	DrawdownAnnualReturnRateBasisPoints *int            `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64           `json:"annualContributionCents"`
 	YearlyBalances                      []YearlyBalance `json:"yearlyBalances"`
 }
@@ -69,12 +69,12 @@ type ProjectedItem struct {
 // YearlyBalance is the end-of-year balance snapshot for a projection year.
 type YearlyBalance struct {
 	Year                    int   `json:"year"`
-	Phase                   Phase `json:"-"`
+	Phase                   Phase `json:"phase"`
 	BalanceCents            int64 `json:"balanceCents"`
 	ContributionCents       int64 `json:"contributionCents"`
-	WithdrawalCents         int64 `json:"-"`
+	WithdrawalCents         int64 `json:"withdrawalCents"`
 	GrowthCents             int64 `json:"growthCents"`
-	UnfundedWithdrawalCents int64 `json:"-"`
+	UnfundedWithdrawalCents int64 `json:"unfundedWithdrawalCents"`
 }
 
 // ValidationError groups one or more projection validation failures.
