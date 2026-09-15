@@ -253,7 +253,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-13-projection-api-endpoint`
-- **Pull Request:** TBD
+- **Pull Request:** [financials-api #9](https://github.com/zachfire9/financials-api/pull/9)
 - Add `POST /projections` to the HTTP handler tree.
 - Support repository-backed projections when `items` is omitted.
 - Support caller-supplied hypothetical items without saving them.
