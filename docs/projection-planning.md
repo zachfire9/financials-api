@@ -2,9 +2,9 @@
 
 ## Goal
 
-Define the next backend contract for projections now that financial item CRUD and local storage are in place, while deferring projection implementation until a basic UI has exercised the existing API.
+Define the backend contract for deterministic v1 projections now that financial item CRUD, local storage, and the basic UI workflow are in place.
 
-This is a planning step only. It does not implement projection calculation code or a projection endpoint yet.
+This document is the projection design/spec reference. The active step checklist, implementation status, branch names, and PR links live in [App Rewrite Plan](app-rewrite.md).
 
 ## Current foundation
 
@@ -140,72 +140,15 @@ Year `0` should always represent the starting state with zero growth and zero co
 
 Use integer cents throughout. Define rounding behavior in tests before implementation; recommended v1 behavior is half-away-from-zero using integer arithmetic for deterministic results.
 
-## Proposed implementation sequence
+## Relationship to the living plan
 
-### Step 7: Basic `financials-ui` React app shell
+This document records the projection behavior and API contract decisions. It should stay focused on the projection spec rather than duplicating the staged implementation checklist.
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
-- Repurpose the old UI repo as a Vite + React + TypeScript app.
-- Keep the first UI branch focused on scaffolding, public-safe config, and local run/build commands.
-- Preserve future AWS Amplify compatibility by using normal static build output and placeholder API config.
+Use [App Rewrite Plan](app-rewrite.md) for the current step sequence, status, branches, and PR links. At the time this spec moved from planning into implementation, the relevant projection milestones were:
 
-### Step 8: Financial-items UI/API integration
-
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
-- Build list/create/update/delete screens against the existing `/financial-items` API.
-- Add a typed API client and basic loading/error/empty-state behavior.
-- Use the local dev proxy while the API is still local-only.
-
-### Step 9: Local network smoke test
-
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
-- Run the API and UI dev servers on the development machine using placeholder bind-address documentation.
-- Verify another device on the same private network can load the UI and exercise financial item CRUD.
-- Keep real LAN addresses, hostnames, firewall/router details, and machine-specific notes out of git.
-
-### Step 10: API CORS and deploy-readiness prep
-
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
-- Add configurable CORS only after proxy-based local UI testing is useful.
-- Document placeholder allowed origins for future static hosting such as AWS Amplify.
-
-### Step 11: Projection calculation engine
-
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
-- Create projection domain models in `internal/projections`.
-- Add deterministic calculation tests for whole-year compounding.
-- Cover multiple items, totals, negative return assumptions, zero years rejection, year upper bound rejection, currency mismatch rejection, and rounding behavior.
-- Implement the calculation engine without HTTP concerns.
-
-### Step 12: Projection API endpoint
-
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
-- Add `POST /projections` to the existing HTTP handler tree.
-- Support repository-backed projections when `items` is omitted.
-- Support hypothetical unsaved items when `items` is provided.
-- Add endpoint tests for success, validation failures, repository fallback, and unknown JSON fields.
-- Update README examples with fake data only.
-
-### Step 13: Projection UI
-
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
-- Extend `financials-ui` with projection request controls and an early chart/table view once the projection API exists.
-- Keep UI config public-safe with placeholder API base URLs only.
-- Plan stale-data/error handling so transient API failures do not wipe useful loaded data.
+- Projection calculation engine in `internal/projections`
+- `POST /projections` API endpoint
+- Projection UI controls and chart/table views after the API contract exists
 
 ## Future features explicitly out of v1
 
