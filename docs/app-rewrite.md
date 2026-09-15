@@ -281,7 +281,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-16-drawdown-calculation-engine`
-- **Pull Request:** TBD
+- **Pull Request:** [#11](https://github.com/zachfire9/financials-api/pull/11)
 - Extend `internal/projections` test-first with explicit saving/drawdown phases and optional per-item drawdown return rates.
 - Preserve v1 accumulation-only behavior while adding annual withdrawals and phase-aware yearly totals.
 - Keep HTTP handler wiring out of this step.
