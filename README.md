@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton, generic financial it
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: drawdown calculation engine
-- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, and accumulation-only `POST /projections`
+- Current branch focus: drawdown projection API contract
+- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, and accumulation/drawdown `POST /projections`
 - Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, and first projection UI integration
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: drawdown `POST /projections` API contract wiring after engine review
+- Next planned area: drawdown projection UI controls/results after API review
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -158,7 +158,7 @@ Validation failures return `400` with an error message. Missing item IDs return 
 
 ## Projection API
 
-`POST /projections` calculates a deterministic whole-year projection with fake/example inputs or with the current saved financial items.
+`POST /projections` calculates a deterministic whole-year projection with fake/example inputs or with the current saved financial items. It supports the original accumulation-only `years` shape and the newer explicit saving/drawdown shape.
 
 Calculate from the current repository-backed financial items by omitting `items` or sending an empty `items` array:
 
@@ -166,47 +166,63 @@ Calculate from the current repository-backed financial items by omitting `items`
 Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"years":10}'
 ```
 
-Calculate a hypothetical unsaved scenario by providing `items`:
+Calculate a hypothetical unsaved accumulation scenario by providing `items`:
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"years":2,"items":[{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"annualContributionCents":300000,"sortOrder":1}]}'
+```
+
+Calculate a hypothetical unsaved drawdown scenario:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"savingYears":1,"drawdownYears":2,"annualWithdrawalCents":6000000,"annualWithdrawalInflationRateBasisPoints":300,"items":[{"name":"Example retirement account","amountCents":20000000,"currency":"USD","annualReturnRateBasisPoints":0,"drawdownAnnualReturnRateBasisPoints":0,"annualContributionCents":100000,"sortOrder":1}]}'
 ```
 
 Expected response shape excerpt:
 
 ```json
 {
-  "years": 2,
+  "years": 3,
+  "savingYears": 1,
+  "drawdownYears": 2,
   "currency": "USD",
   "items": [
     {
       "id": "",
-      "name": "Example brokerage",
-      "startingAmountCents": 1250000,
-      "annualReturnRateBasisPoints": 700,
-      "annualContributionCents": 300000,
+      "name": "Example retirement account",
+      "startingAmountCents": 20000000,
+      "annualReturnRateBasisPoints": 0,
+      "drawdownAnnualReturnRateBasisPoints": 0,
+      "annualContributionCents": 100000,
       "yearlyBalances": [
         {
           "year": 0,
-          "balanceCents": 1250000,
+          "phase": "starting",
+          "balanceCents": 20000000,
           "contributionCents": 0,
-          "growthCents": 0
+          "withdrawalCents": 0,
+          "growthCents": 0,
+          "unfundedWithdrawalCents": 0
         },
         {
           "year": 1,
-          "balanceCents": 1637500,
-          "contributionCents": 300000,
-          "growthCents": 87500
+          "phase": "saving",
+          "balanceCents": 20100000,
+          "contributionCents": 100000,
+          "withdrawalCents": 0,
+          "growthCents": 0,
+          "unfundedWithdrawalCents": 0
+        },
+        {
+          "year": 2,
+          "phase": "drawdown",
+          "balanceCents": 14100000,
+          "contributionCents": 0,
+          "withdrawalCents": 6000000,
+          "growthCents": 0,
+          "unfundedWithdrawalCents": 0
         }
       ]
-    }
-  ],
-  "totals": [
-    {
-      "year": 0,
-      "balanceCents": 1250000,
-      "contributionCents": 0,
-      "growthCents": 0
     }
   ]
 }
@@ -214,7 +230,11 @@ Expected response shape excerpt:
 
 Projection rules:
 
-- `years` must be between `1` and `75`.
+- Accumulation-only requests use `years`, which must be between `1` and `75`.
+- Drawdown-capable requests use `savingYears` plus optional `drawdownYears`; `years` is mutually exclusive with those phase fields.
+- `drawdownYears` greater than `0` requires `annualWithdrawalCents`.
+- `annualWithdrawalInflationRateBasisPoints` is optional and defaults to `0`; `300` means the requested withdrawal grows by 3% each drawdown year.
+- `drawdownAnnualReturnRateBasisPoints` is optional per item; if omitted, drawdown years use the normal `annualReturnRateBasisPoints`.
 - All items in one projection must use the same currency.
 - Hypothetical `items` are validated but not saved.
 - Unknown JSON fields return `400` to catch request typos.

@@ -331,6 +331,97 @@ func TestProjectionEndpointCalculatesHypotheticalItemsWithoutSaving(t *testing.T
 	}
 }
 
+func TestProjectionEndpointCalculatesDrawdownHypotheticalItemsWithoutSaving(t *testing.T) {
+	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/projections", strings.NewReader(`{
+		"savingYears":1,
+		"drawdownYears":2,
+		"annualWithdrawalCents":6000000,
+		"annualWithdrawalInflationRateBasisPoints":300,
+		"items":[
+			{
+				"name":"Example retirement account",
+				"amountCents":20000000,
+				"currency":"USD",
+				"annualReturnRateBasisPoints":0,
+				"drawdownAnnualReturnRateBasisPoints":0,
+				"annualContributionCents":100000,
+				"sortOrder":1
+			}
+		]
+	}`))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	var projection projections.Projection
+	decodeJSON(t, recorder, &projection)
+	if projection.Years != 3 || projection.SavingYears != 1 || projection.DrawdownYears != 2 || projection.Currency != "USD" {
+		t.Fatalf("unexpected drawdown projection metadata: %+v", projection)
+	}
+	if len(projection.Items) != 1 {
+		t.Fatalf("expected one projected item, got %d", len(projection.Items))
+	}
+	if projection.Items[0].DrawdownAnnualReturnRateBasisPoints == nil || *projection.Items[0].DrawdownAnnualReturnRateBasisPoints != 0 {
+		t.Fatalf("expected drawdown return rate in response, got %+v", projection.Items[0].DrawdownAnnualReturnRateBasisPoints)
+	}
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[0], 0, projections.PhaseStarting, 20000000, 0, 0, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, projections.PhaseSaving, 20100000, 100000, 0, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, projections.PhaseDrawdown, 14100000, 0, 6000000, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[3], 3, projections.PhaseDrawdown, 7920000, 0, 6180000, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Totals[3], 3, projections.PhaseDrawdown, 7920000, 0, 6180000, 0, 0)
+
+	listRecorder := httptest.NewRecorder()
+	listRequest := httptest.NewRequest(http.MethodGet, "/financial-items", nil)
+	handler.ServeHTTP(listRecorder, listRequest)
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("expected financial item list status %d, got %d", http.StatusOK, listRecorder.Code)
+	}
+	var listed []financialitems.FinancialItem
+	decodeJSON(t, listRecorder, &listed)
+	if len(listed) != 0 {
+		t.Fatalf("expected hypothetical drawdown projection items not to be saved, got %+v", listed)
+	}
+}
+
+func TestProjectionEndpointUsesRepositoryItemsForDrawdownWhenItemsOmittedOrEmpty(t *testing.T) {
+	repository := financialitems.NewInMemoryRepository()
+	handler := NewHandlerWithRepository(repository)
+	created := createFinancialItem(t, handler, `{
+		"name":"Stored retirement account",
+		"amountCents":10000000,
+		"currency":"USD",
+		"annualReturnRateBasisPoints":0,
+		"annualContributionCents":0,
+		"sortOrder":1
+	}`)
+
+	for _, body := range []string{`{"savingYears":0,"drawdownYears":1,"annualWithdrawalCents":1000000}`, `{"savingYears":0,"drawdownYears":1,"annualWithdrawalCents":1000000,"items":[]}`} {
+		t.Run(body, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, "/projections", strings.NewReader(body))
+			handler.ServeHTTP(recorder, request)
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+			}
+			var projection projections.Projection
+			decodeJSON(t, recorder, &projection)
+			if projection.SavingYears != 0 || projection.DrawdownYears != 1 {
+				t.Fatalf("unexpected phase metadata: %+v", projection)
+			}
+			if len(projection.Items) != 1 || projection.Items[0].ID != created.ID {
+				t.Fatalf("expected repository item identity in projection, got %+v", projection.Items)
+			}
+			assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, projections.PhaseDrawdown, 9000000, 0, 1000000, 0, 0)
+		})
+	}
+}
+
 func TestProjectionEndpointUsesRepositoryItemsWhenItemsOmittedOrEmpty(t *testing.T) {
 	repository := financialitems.NewInMemoryRepository()
 	handler := NewHandlerWithRepository(repository)
@@ -396,6 +487,42 @@ func TestProjectionEndpointReturnsValidationFailures(t *testing.T) {
 	}
 }
 
+func TestProjectionEndpointReturnsDrawdownValidationFailures(t *testing.T) {
+	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/projections", strings.NewReader(`{
+		"years":10,
+		"savingYears":1,
+		"drawdownYears":1,
+		"annualWithdrawalCents":0,
+		"annualWithdrawalInflationRateBasisPoints":-1,
+		"items":[
+			{
+				"name":"Example retirement account",
+				"amountCents":10000000,
+				"currency":"USD",
+				"annualReturnRateBasisPoints":0,
+				"drawdownAnnualReturnRateBasisPoints":100001,
+				"annualContributionCents":0,
+				"sortOrder":1
+			}
+		]
+	}`))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	}
+	var response errorResponse
+	decodeJSON(t, recorder, &response)
+	for _, want := range []string{"mutually exclusive", "annualWithdrawalCents", "annualWithdrawalInflationRateBasisPoints", "drawdownAnnualReturnRateBasisPoints"} {
+		if !strings.Contains(response.Error, want) {
+			t.Fatalf("expected drawdown validation response to contain %q, got %q", want, response.Error)
+		}
+	}
+}
+
 func TestProjectionEndpointRejectsUnknownFields(t *testing.T) {
 	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
 
@@ -420,6 +547,13 @@ func assertProjectionBalance(t *testing.T, got projections.YearlyBalance, year i
 	t.Helper()
 	if got.Year != year || got.BalanceCents != balanceCents || got.ContributionCents != contributionCents || got.GrowthCents != growthCents {
 		t.Fatalf("unexpected projection balance: got %+v, want year=%d balance=%d contribution=%d growth=%d", got, year, balanceCents, contributionCents, growthCents)
+	}
+}
+
+func assertProjectionPhaseBalance(t *testing.T, got projections.YearlyBalance, year int, phase projections.Phase, balanceCents int64, contributionCents int64, withdrawalCents int64, growthCents int64, unfundedWithdrawalCents int64) {
+	t.Helper()
+	if got.Year != year || got.Phase != phase || got.BalanceCents != balanceCents || got.ContributionCents != contributionCents || got.WithdrawalCents != withdrawalCents || got.GrowthCents != growthCents || got.UnfundedWithdrawalCents != unfundedWithdrawalCents {
+		t.Fatalf("unexpected projection phase balance: got %+v, want year=%d phase=%s balance=%d contribution=%d withdrawal=%d growth=%d unfundedWithdrawal=%d", got, year, phase, balanceCents, contributionCents, withdrawalCents, growthCents, unfundedWithdrawalCents)
 	}
 }
 
