@@ -272,7 +272,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-15-drawdown-projection-planning`
-- **Pull Request:** TBD
+- **Pull Request:** [#10](https://github.com/zachfire9/financials-api/pull/10)
 - Define the next projection contract for explicit saving years plus optional drawdown years.
 - Capture open decisions for withdrawal timing, allocation, depletion behavior, and default horizons before implementation.
 - Add follow-up backend/API/UI steps for the drawdown-capable projection workflow.
