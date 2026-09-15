@@ -304,6 +304,16 @@ Track each step as a living checklist. Each implementation PR should update this
 - Show phase labels in the existing year-grouped projection results.
 - Keep charts optional until the drawdown table workflow is proven.
 
+### Step 19: JSON backup export/import
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add a public-safe JSON backup workflow so all saved financial data can be exported, saved locally, and re-imported after memory/file storage is cleared.
+- Backend scope: add tested export/import endpoints for financial items using the existing repository boundary; validate import payload shape, reject malformed data, preserve explicit IDs/sort order/timestamps where safe, and make import replacement semantics explicit.
+- UI scope: add export/download and import/upload controls that use JSON files only, show success/error states, and refresh the financial-items list plus projections after import.
+- Docs scope: document fake/example backup files only, warn that real financial backup JSON should stay out of git, and include a restore checklist.
+
 ## Open decisions
 
 - Go HTTP stack/router choice: standard library only vs `chi` as the first router dependency.
