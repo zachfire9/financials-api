@@ -261,11 +261,48 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 14: Projection UI
 
+- [x] **Status:** Completed
+- **Branch:** `step-14-projection-ui`
+- **Pull Request:** [financials-ui #5](https://github.com/zachfire9/financials-ui/pull/5)
+- Extend `financials-ui` with projection request controls and an early table view once the projection API exists.
+- Keep typed API client boundaries, placeholder-only config, and stale-data handling.
+- Present projection rows grouped by year, with item balances and the combined balance at the far right.
+
+### Step 15: Drawdown projection planning
+
+- [x] **Status:** Completed
+- **Branch:** `step-15-drawdown-projection-planning`
+- **Pull Request:** TBD
+- Define the next projection contract for explicit saving years plus optional drawdown years.
+- Capture open decisions for withdrawal timing, allocation, depletion behavior, and default horizons before implementation.
+- Add follow-up backend/API/UI steps for the drawdown-capable projection workflow.
+
+### Step 16: Drawdown calculation engine
+
 - [ ] **Status:** Pending
 - **Branch:** TBD
 - **Pull Request:** TBD
-- Extend `financials-ui` with projection request controls and an early chart/table view once the projection API exists.
-- Keep typed API client boundaries, placeholder-only config, and stale-data handling.
+- Extend `internal/projections` test-first with explicit saving/drawdown phases.
+- Preserve v1 accumulation-only behavior while adding annual withdrawals and phase-aware yearly totals.
+- Keep HTTP handler wiring out of this step.
+
+### Step 17: Drawdown projection API contract
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Extend `POST /projections` request/response handling for `savingYears`, optional `drawdownYears`, and drawdown-specific validation.
+- Preserve existing `years` requests for the current UI until the UI migrates.
+- Document fake/example payloads only.
+
+### Step 18: Drawdown projection UI
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add saving-years, drawdown-years, and annual-withdrawal controls to `financials-ui` after the API supports them.
+- Show phase labels in the existing year-grouped projection results.
+- Keep charts optional until the drawdown table workflow is proven.
 
 ## Open decisions
 
@@ -276,8 +313,8 @@ Track each step as a living checklist. Each implementation PR should update this
 - Whether authentication is needed for local-only use, and if so which lightweight mechanism fits best.
 - UI stack recommendation: Vite + React + TypeScript, with static build output suitable for AWS Amplify later.
 - Local UI/API smoke testing should use placeholder bind-address docs and keep real LAN details out of git.
-- Projection v1 request/response shape is proposed in `docs/projection-planning.md`; review open questions after the basic UI/API workflow is tested.
-- Projection v1 contribution timing default is end-of-year unless Zach chooses otherwise.
+- Projection v1 request/response shape is implemented for accumulation-only projections.
+- Drawdown v2 questions are proposed in `docs/drawdown-projection-planning.md`, including withdrawal timing, allocation order, depletion behavior, contribution behavior during drawdown, and default drawdown horizon.
 
 ## Verification expectations
 

@@ -2,23 +2,24 @@
 
 A local-first personal financial planning API, rebuilt from the old prototype as a Go service.
 
-The first implementation phase focuses on the API skeleton and generic financial item tracking. Projection features will build on those configurable inputs once the model and workflow are stable.
+The first implementation phase focuses on the API skeleton, generic financial item tracking, and deterministic projection workflows. Drawdown projection features will build on the current accumulation-only projection contract once the next backend decisions are pinned.
 
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: projection API endpoint
-- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, and `POST /projections`
-- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, and projection calculation logic
+- Current branch focus: drawdown projection planning
+- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, and accumulation-only `POST /projections`
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, and first projection UI integration
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: projection UI controls and visualizations after this API contract is reviewed
+- Next planned area: drawdown-capable projection engine and API contract after planning review
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
 
 - [App Rewrite Plan](docs/app-rewrite.md)
 - [Projection Planning](docs/projection-planning.md)
+- [Drawdown Projection Planning](docs/drawdown-projection-planning.md)
 
 ## Local development
 
