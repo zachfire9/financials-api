@@ -242,8 +242,8 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 12: Projection calculation engine
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-12-projection-calculation-engine`
 - **Pull Request:** TBD
 - Create projection domain models in `internal/projections`.
 - Implement deterministic whole-year projection calculations test-first.
