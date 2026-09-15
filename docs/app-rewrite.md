@@ -242,9 +242,9 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 12: Projection calculation engine
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
+- [x] **Status:** Completed
+- **Branch:** `step-12-projection-calculation-engine`
+- **Pull Request:** [financials-api #8](https://github.com/zachfire9/financials-api/pull/8)
 - Create projection domain models in `internal/projections`.
 - Implement deterministic whole-year projection calculations test-first.
 - Cover per-item yearly balances, aggregate totals, validation, currency mismatches, negative return assumptions, and rounding behavior.
