@@ -290,7 +290,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-17-drawdown-projection-api-contract`
-- **Pull Request:** TBD
+- **Pull Request:** [#12](https://github.com/zachfire9/financials-api/pull/12)
 - Extend `POST /projections` request/response handling for `savingYears`, optional `drawdownYears`, `annualWithdrawalCents`, `annualWithdrawalInflationRateBasisPoints`, and drawdown-specific validation.
 - Preserve existing `years` requests for the current UI until the UI migrates.
 - Document fake/example payloads only.
