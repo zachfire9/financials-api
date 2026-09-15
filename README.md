@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton and generic financial
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: API CORS and deploy-readiness prep
-- Implemented endpoints: `GET /health` plus `/financial-items` create/list/read/update/delete behavior
-- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, and repository behavior tests
+- Current branch focus: projection API endpoint
+- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, and `POST /projections`
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, and projection calculation logic
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: projection calculation logic
+- Next planned area: projection UI controls and visualizations after this API contract is reviewed
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -154,6 +154,69 @@ Invoke-RestMethod http://localhost:8080/financial-items/item_000001 -Method Dele
 ```
 
 Validation failures return `400` with an error message. Missing item IDs return `404`.
+
+## Projection API
+
+`POST /projections` calculates a deterministic whole-year projection with fake/example inputs or with the current saved financial items.
+
+Calculate from the current repository-backed financial items by omitting `items` or sending an empty `items` array:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"years":10}'
+```
+
+Calculate a hypothetical unsaved scenario by providing `items`:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"years":2,"items":[{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"annualContributionCents":300000,"sortOrder":1}]}'
+```
+
+Expected response shape excerpt:
+
+```json
+{
+  "years": 2,
+  "currency": "USD",
+  "items": [
+    {
+      "id": "",
+      "name": "Example brokerage",
+      "startingAmountCents": 1250000,
+      "annualReturnRateBasisPoints": 700,
+      "annualContributionCents": 300000,
+      "yearlyBalances": [
+        {
+          "year": 0,
+          "balanceCents": 1250000,
+          "contributionCents": 0,
+          "growthCents": 0
+        },
+        {
+          "year": 1,
+          "balanceCents": 1637500,
+          "contributionCents": 300000,
+          "growthCents": 87500
+        }
+      ]
+    }
+  ],
+  "totals": [
+    {
+      "year": 0,
+      "balanceCents": 1250000,
+      "contributionCents": 0,
+      "growthCents": 0
+    }
+  ]
+}
+```
+
+Projection rules:
+
+- `years` must be between `1` and `75`.
+- All items in one projection must use the same currency.
+- Hypothetical `items` are validated but not saved.
+- Unknown JSON fields return `400` to catch request typos.
 
 ## Public repo boundaries
 

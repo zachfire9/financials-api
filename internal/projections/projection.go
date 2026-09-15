@@ -17,45 +17,45 @@ const (
 
 // Request contains the pure domain inputs needed to calculate a whole-year projection.
 type Request struct {
-	Years int
-	Items []ItemInput
+	Years int         `json:"years"`
+	Items []ItemInput `json:"items"`
 }
 
 // ItemInput is one configurable financial item used by the projection engine.
 type ItemInput struct {
-	ID                          string
-	Name                        string
-	AmountCents                 int64
-	Currency                    string
-	AnnualReturnRateBasisPoints int
-	AnnualContributionCents     int64
-	SortOrder                   int
+	ID                          string `json:"id"`
+	Name                        string `json:"name"`
+	AmountCents                 int64  `json:"amountCents"`
+	Currency                    string `json:"currency"`
+	AnnualReturnRateBasisPoints int    `json:"annualReturnRateBasisPoints"`
+	AnnualContributionCents     int64  `json:"annualContributionCents"`
+	SortOrder                   int    `json:"sortOrder"`
 }
 
 // Projection is the deterministic whole-year projection result.
 type Projection struct {
-	Years    int
-	Currency string
-	Items    []ProjectedItem
-	Totals   []YearlyBalance
+	Years    int             `json:"years"`
+	Currency string          `json:"currency"`
+	Items    []ProjectedItem `json:"items"`
+	Totals   []YearlyBalance `json:"totals"`
 }
 
 // ProjectedItem contains the per-year projection series for one input item.
 type ProjectedItem struct {
-	ID                          string
-	Name                        string
-	StartingAmountCents         int64
-	AnnualReturnRateBasisPoints int
-	AnnualContributionCents     int64
-	YearlyBalances              []YearlyBalance
+	ID                          string          `json:"id"`
+	Name                        string          `json:"name"`
+	StartingAmountCents         int64           `json:"startingAmountCents"`
+	AnnualReturnRateBasisPoints int             `json:"annualReturnRateBasisPoints"`
+	AnnualContributionCents     int64           `json:"annualContributionCents"`
+	YearlyBalances              []YearlyBalance `json:"yearlyBalances"`
 }
 
 // YearlyBalance is the end-of-year balance snapshot for a projection year.
 type YearlyBalance struct {
-	Year              int
-	BalanceCents      int64
-	ContributionCents int64
-	GrowthCents       int64
+	Year              int   `json:"year"`
+	BalanceCents      int64 `json:"balanceCents"`
+	ContributionCents int64 `json:"contributionCents"`
+	GrowthCents       int64 `json:"growthCents"`
 }
 
 // ValidationError groups one or more projection validation failures.
