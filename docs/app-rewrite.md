@@ -235,7 +235,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-11-api-cors-deploy-readiness`
-- **Pull Request:** Pending until PR is created
+- **Pull Request:** [financials-api #7](https://github.com/zachfire9/financials-api/pull/7)
 - Add API CORS support and configuration only after the local proxy-based UI workflow is proven.
 - Document placeholder allowed-origin settings for future static hosting such as AWS Amplify.
 - Keep real deployed origins and private runtime values in ignored local config or private operator notes.
