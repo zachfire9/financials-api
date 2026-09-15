@@ -22,8 +22,10 @@ func main() {
 	}
 
 	server := &http.Server{
-		Addr:    cfg.APIAddr,
-		Handler: httpapi.NewHandlerWithRepository(repository),
+		Addr: cfg.APIAddr,
+		Handler: httpapi.NewHandlerWithRepositoryAndCORS(repository, httpapi.CORSConfig{
+			AllowedOrigins: cfg.AllowedOrigins,
+		}),
 	}
 
 	log.Printf("financials-api listening on %s with %s storage", cfg.APIAddr, cfg.StorageDriver)

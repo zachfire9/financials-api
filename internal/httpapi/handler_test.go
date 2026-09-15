@@ -46,6 +46,73 @@ func TestUnknownRouteReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestCORSMiddlewareAllowsConfiguredOrigins(t *testing.T) {
+	handler := NewHandlerWithRepositoryAndCORS(
+		financialitems.NewInMemoryRepository(),
+		CORSConfig{AllowedOrigins: []string{"https://example-amplify-app.example.com"}},
+	)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	request.Header.Set("Origin", "https://example-amplify-app.example.com")
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if origin := recorder.Header().Get("Access-Control-Allow-Origin"); origin != "https://example-amplify-app.example.com" {
+		t.Fatalf("expected allowed origin header, got %q", origin)
+	}
+	if vary := recorder.Header().Get("Vary"); vary != "Origin" {
+		t.Fatalf("expected Vary: Origin, got %q", vary)
+	}
+}
+
+func TestCORSMiddlewareRejectsUnconfiguredOrigins(t *testing.T) {
+	handler := NewHandlerWithRepositoryAndCORS(
+		financialitems.NewInMemoryRepository(),
+		CORSConfig{AllowedOrigins: []string{"https://example-amplify-app.example.com"}},
+	)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	request.Header.Set("Origin", "https://unexpected.example.com")
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if origin := recorder.Header().Get("Access-Control-Allow-Origin"); origin != "" {
+		t.Fatalf("expected no allowed origin header for rejected origin, got %q", origin)
+	}
+}
+
+func TestCORSMiddlewareHandlesPreflightForConfiguredOrigins(t *testing.T) {
+	handler := NewHandlerWithRepositoryAndCORS(
+		financialitems.NewInMemoryRepository(),
+		CORSConfig{AllowedOrigins: []string{"https://example-amplify-app.example.com"}},
+	)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodOptions, "/financial-items", nil)
+	request.Header.Set("Origin", "https://example-amplify-app.example.com")
+	request.Header.Set("Access-Control-Request-Method", http.MethodPost)
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, recorder.Code)
+	}
+	if origin := recorder.Header().Get("Access-Control-Allow-Origin"); origin != "https://example-amplify-app.example.com" {
+		t.Fatalf("expected allowed origin header, got %q", origin)
+	}
+	if methods := recorder.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(methods, http.MethodPost) || !strings.Contains(methods, http.MethodOptions) {
+		t.Fatalf("expected CORS methods to include POST and OPTIONS, got %q", methods)
+	}
+	if headers := recorder.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(headers, "Content-Type") {
+		t.Fatalf("expected CORS headers to include Content-Type, got %q", headers)
+	}
+}
+
 func TestFinancialItemsEndpointCreatesAndListsItems(t *testing.T) {
 	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
 

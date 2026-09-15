@@ -14,9 +14,10 @@ const (
 
 // Config contains public-safe local runtime configuration for the API.
 type Config struct {
-	APIAddr       string
-	StorageDriver string
-	StoragePath   string
+	APIAddr        string
+	StorageDriver  string
+	StoragePath    string
+	AllowedOrigins []string
 }
 
 // Load reads configuration from defaults, an optional .env file, and process env.
@@ -29,9 +30,10 @@ func Load(envFilePath string) (Config, error) {
 	}
 
 	cfg := Config{
-		APIAddr:       valueFor("FINANCIALS_API_ADDR", envFileValues, ":8080"),
-		StorageDriver: valueFor("FINANCIALS_STORAGE_DRIVER", envFileValues, StorageDriverMemory),
-		StoragePath:   valueFor("FINANCIALS_STORAGE_PATH", envFileValues, ""),
+		APIAddr:        valueFor("FINANCIALS_API_ADDR", envFileValues, ":8080"),
+		StorageDriver:  valueFor("FINANCIALS_STORAGE_DRIVER", envFileValues, StorageDriverMemory),
+		StoragePath:    valueFor("FINANCIALS_STORAGE_PATH", envFileValues, ""),
+		AllowedOrigins: splitCSV(valueFor("FINANCIALS_ALLOWED_ORIGINS", envFileValues, "")),
 	}
 
 	if cfg.StorageDriver == StorageDriverMemory {
@@ -55,6 +57,22 @@ func valueFor(key string, envFileValues map[string]string, fallback string) stri
 		return value
 	}
 	return fallback
+}
+
+func splitCSV(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	return values
 }
 
 func readEnvFile(path string) (map[string]string, error) {

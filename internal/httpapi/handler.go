@@ -18,6 +18,16 @@ func NewHandler() http.Handler {
 
 // NewHandlerWithRepository builds the HTTP handler tree with an injected financial item repository.
 func NewHandlerWithRepository(repository financialitems.Repository) http.Handler {
+	return NewHandlerWithRepositoryAndCORS(repository, CORSConfig{})
+}
+
+// CORSConfig contains allowed browser origins for static-hosted UI deployments.
+type CORSConfig struct {
+	AllowedOrigins []string
+}
+
+// NewHandlerWithRepositoryAndCORS builds the HTTP handler tree with an injected financial item repository and CORS config.
+func NewHandlerWithRepositoryAndCORS(repository financialitems.Repository, corsConfig CORSConfig) http.Handler {
 	api := &apiHandler{financialItems: repository}
 
 	mux := http.NewServeMux()
@@ -27,7 +37,32 @@ func NewHandlerWithRepository(repository financialitems.Repository) http.Handler
 	mux.HandleFunc("GET /financial-items/{id}", api.handleFinancialItemsGet)
 	mux.HandleFunc("PUT /financial-items/{id}", api.handleFinancialItemsUpdate)
 	mux.HandleFunc("DELETE /financial-items/{id}", api.handleFinancialItemsDelete)
-	return mux
+	return withCORS(mux, corsConfig)
+}
+
+func withCORS(next http.Handler, config CORSConfig) http.Handler {
+	allowedOrigins := make(map[string]struct{}, len(config.AllowedOrigins))
+	for _, origin := range config.AllowedOrigins {
+		allowedOrigins[origin] = struct{}{}
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		_, isAllowedOrigin := allowedOrigins[origin]
+		if origin != "" && isAllowedOrigin {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		}
+
+		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 type apiHandler struct {
