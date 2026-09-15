@@ -155,7 +155,7 @@ Use [App Rewrite Plan](app-rewrite.md) for the current step sequence, status, br
 - Monthly compounding or contribution timing options
 - Inflation-adjusted dollars
 - Tax treatment and account category modeling
-- Withdrawals or retirement drawdown planning
+- Withdrawals or retirement drawdown planning; see [Drawdown Projection Planning](drawdown-projection-planning.md) for the proposed next scoped expansion.
 - Monte Carlo or variable returns
 - Persisted projection scenarios
 - Authentication or multi-user ownership
