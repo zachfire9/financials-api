@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton, generic financial it
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: drawdown projection API contract
+- Current branch focus: drawdown workflow tracking after UI integration
 - Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, and accumulation/drawdown `POST /projections`
-- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, and first projection UI integration
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: drawdown projection UI controls/results after API review
+- Next planned area: persisted per-item drawdown return assumptions, followed by JSON backup export/import
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
