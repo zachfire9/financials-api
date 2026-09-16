@@ -308,7 +308,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [ ] **Status:** In progress — backend/API support on current branch; UI support will follow in `financials-ui`.
 - **Branch:** `step-19-per-item-drawdown-return-assumptions`
-- **Pull Request:** TBD
+- **Pull Request:** [financials-api #14](https://github.com/zachfire9/financials-api/pull/14)
 - Add a persisted optional drawdown return rate per financial item so each item can use one return assumption while saving and a different return assumption once drawdown begins.
 - Backend scope: extend financial item request/response/storage models with optional `drawdownAnnualReturnRateBasisPoints`; validate it with the same basis-point bounds as accumulation return; keep existing items compatible by falling back to `annualReturnRateBasisPoints` when omitted.
 - Projection scope: pass the saved per-item drawdown return into repository-backed `POST /projections` requests; preserve the already-supported hypothetical `items[].drawdownAnnualReturnRateBasisPoints` behavior.
