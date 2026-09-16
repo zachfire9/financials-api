@@ -34,6 +34,9 @@ func TestJSONFileRepositoryPersistsFinancialItemsAcrossInstances(t *testing.T) {
 	if items[0].ID != created.ID || items[0].Name != created.Name {
 		t.Fatalf("unexpected persisted item: %+v", items[0])
 	}
+	if items[0].DrawdownAnnualReturnRateBasisPoints == nil || *items[0].DrawdownAnnualReturnRateBasisPoints != *created.DrawdownAnnualReturnRateBasisPoints {
+		t.Fatalf("expected persisted drawdown return rate %v, got %v", created.DrawdownAnnualReturnRateBasisPoints, items[0].DrawdownAnnualReturnRateBasisPoints)
+	}
 }
 
 func TestJSONFileRepositoryUpdatesAndDeletesPersistedFinancialItems(t *testing.T) {

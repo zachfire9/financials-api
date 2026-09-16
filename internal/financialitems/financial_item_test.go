@@ -1,6 +1,7 @@
 package financialitems
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -62,6 +63,32 @@ func TestValidateCreateFinancialItemRequestRejectsAbsurdReturnRates(t *testing.T
 	}
 	if !strings.Contains(err.Error(), "annualReturnRateBasisPoints") {
 		t.Fatalf("expected annualReturnRateBasisPoints validation error, got %v", err)
+	}
+}
+
+func TestValidateCreateFinancialItemRequestAllowsOmittedDrawdownReturnRate(t *testing.T) {
+	request := FakeCreateFinancialItemRequest()
+	request.DrawdownAnnualReturnRateBasisPoints = nil
+
+	if err := request.Validate(); err != nil {
+		t.Fatalf("expected omitted drawdown return rate to fall back later, got %v", err)
+	}
+}
+
+func TestValidateCreateFinancialItemRequestRejectsInvalidDrawdownReturnRates(t *testing.T) {
+	for _, value := range []int{-10001, 100001} {
+		t.Run(fmt.Sprintf("%d", value), func(t *testing.T) {
+			request := FakeCreateFinancialItemRequest()
+			request.DrawdownAnnualReturnRateBasisPoints = &value
+
+			err := request.Validate()
+			if err == nil {
+				t.Fatal("expected invalid drawdown return rate to fail validation")
+			}
+			if !strings.Contains(err.Error(), "drawdownAnnualReturnRateBasisPoints") {
+				t.Fatalf("expected drawdownAnnualReturnRateBasisPoints validation error, got %v", err)
+			}
+		})
 	}
 }
 

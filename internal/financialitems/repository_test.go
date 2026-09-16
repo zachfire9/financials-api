@@ -28,6 +28,9 @@ func TestInMemoryRepositoryCreatesFinancialItemWithGeneratedFields(t *testing.T)
 	if item.AnnualReturnRateBasisPoints != request.AnnualReturnRateBasisPoints {
 		t.Fatalf("expected return rate %d, got %d", request.AnnualReturnRateBasisPoints, item.AnnualReturnRateBasisPoints)
 	}
+	if item.DrawdownAnnualReturnRateBasisPoints == nil || *item.DrawdownAnnualReturnRateBasisPoints != *request.DrawdownAnnualReturnRateBasisPoints {
+		t.Fatalf("expected drawdown return rate %v, got %v", request.DrawdownAnnualReturnRateBasisPoints, item.DrawdownAnnualReturnRateBasisPoints)
+	}
 	if item.AnnualContributionCents != request.AnnualContributionCents {
 		t.Fatalf("expected annual contribution %d, got %d", request.AnnualContributionCents, item.AnnualContributionCents)
 	}
@@ -88,13 +91,15 @@ func TestInMemoryRepositoryGetsAndUpdatesFinancialItem(t *testing.T) {
 		t.Fatalf("expected ID %q, got %q", created.ID, got.ID)
 	}
 
+	drawdownReturn := 250
 	updated, err := repository.Update(context.Background(), created.ID, UpdateFinancialItemRequest{
-		Name:                        "Example updated brokerage",
-		AmountCents:                 2500000,
-		Currency:                    "USD",
-		AnnualReturnRateBasisPoints: 650,
-		AnnualContributionCents:     600000,
-		SortOrder:                   5,
+		Name:                                "Example updated brokerage",
+		AmountCents:                         2500000,
+		Currency:                            "USD",
+		AnnualReturnRateBasisPoints:         650,
+		DrawdownAnnualReturnRateBasisPoints: &drawdownReturn,
+		AnnualContributionCents:             600000,
+		SortOrder:                           5,
 	})
 	if err != nil {
 		t.Fatalf("update financial item: %v", err)
@@ -105,6 +110,9 @@ func TestInMemoryRepositoryGetsAndUpdatesFinancialItem(t *testing.T) {
 	}
 	if updated.AmountCents != 2500000 || updated.AnnualReturnRateBasisPoints != 650 || updated.SortOrder != 5 {
 		t.Fatalf("expected updated financial fields, got %+v", updated)
+	}
+	if updated.DrawdownAnnualReturnRateBasisPoints == nil || *updated.DrawdownAnnualReturnRateBasisPoints != drawdownReturn {
+		t.Fatalf("expected updated drawdown return %d, got %v", drawdownReturn, updated.DrawdownAnnualReturnRateBasisPoints)
 	}
 	if !updated.CreatedAt.Equal(created.CreatedAt) {
 		t.Fatalf("expected created timestamp to stay %v, got %v", created.CreatedAt, updated.CreatedAt)

@@ -173,13 +173,14 @@ func projectionInputsFromFinancialItems(items []financialitems.FinancialItem) []
 	inputs := make([]projections.ItemInput, 0, len(items))
 	for _, item := range items {
 		inputs = append(inputs, projections.ItemInput{
-			ID:                          item.ID,
-			Name:                        item.Name,
-			AmountCents:                 item.AmountCents,
-			Currency:                    item.Currency,
-			AnnualReturnRateBasisPoints: item.AnnualReturnRateBasisPoints,
-			AnnualContributionCents:     item.AnnualContributionCents,
-			SortOrder:                   item.SortOrder,
+			ID:                                  item.ID,
+			Name:                                item.Name,
+			AmountCents:                         item.AmountCents,
+			Currency:                            item.Currency,
+			AnnualReturnRateBasisPoints:         item.AnnualReturnRateBasisPoints,
+			DrawdownAnnualReturnRateBasisPoints: item.DrawdownAnnualReturnRateBasisPoints,
+			AnnualContributionCents:             item.AnnualContributionCents,
+			SortOrder:                           item.SortOrder,
 		})
 	}
 	return inputs

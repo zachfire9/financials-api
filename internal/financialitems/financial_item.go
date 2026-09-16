@@ -13,35 +13,38 @@ const (
 
 // FinancialItem is the API-facing representation of a configurable projection input.
 type FinancialItem struct {
-	ID                          string    `json:"id"`
-	Name                        string    `json:"name"`
-	AmountCents                 int64     `json:"amountCents"`
-	Currency                    string    `json:"currency"`
-	AnnualReturnRateBasisPoints int       `json:"annualReturnRateBasisPoints"`
-	AnnualContributionCents     int64     `json:"annualContributionCents"`
-	SortOrder                   int       `json:"sortOrder"`
-	CreatedAt                   time.Time `json:"createdAt"`
-	UpdatedAt                   time.Time `json:"updatedAt"`
+	ID                                  string    `json:"id"`
+	Name                                string    `json:"name"`
+	AmountCents                         int64     `json:"amountCents"`
+	Currency                            string    `json:"currency"`
+	AnnualReturnRateBasisPoints         int       `json:"annualReturnRateBasisPoints"`
+	DrawdownAnnualReturnRateBasisPoints *int      `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
+	AnnualContributionCents             int64     `json:"annualContributionCents"`
+	SortOrder                           int       `json:"sortOrder"`
+	CreatedAt                           time.Time `json:"createdAt"`
+	UpdatedAt                           time.Time `json:"updatedAt"`
 }
 
 // CreateFinancialItemRequest contains user-editable fields for a new financial item.
 type CreateFinancialItemRequest struct {
-	Name                        string `json:"name"`
-	AmountCents                 int64  `json:"amountCents"`
-	Currency                    string `json:"currency"`
-	AnnualReturnRateBasisPoints int    `json:"annualReturnRateBasisPoints"`
-	AnnualContributionCents     int64  `json:"annualContributionCents"`
-	SortOrder                   int    `json:"sortOrder"`
+	Name                                string `json:"name"`
+	AmountCents                         int64  `json:"amountCents"`
+	Currency                            string `json:"currency"`
+	AnnualReturnRateBasisPoints         int    `json:"annualReturnRateBasisPoints"`
+	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
+	AnnualContributionCents             int64  `json:"annualContributionCents"`
+	SortOrder                           int    `json:"sortOrder"`
 }
 
 // UpdateFinancialItemRequest contains the full editable financial item payload.
 type UpdateFinancialItemRequest struct {
-	Name                        string `json:"name"`
-	AmountCents                 int64  `json:"amountCents"`
-	Currency                    string `json:"currency"`
-	AnnualReturnRateBasisPoints int    `json:"annualReturnRateBasisPoints"`
-	AnnualContributionCents     int64  `json:"annualContributionCents"`
-	SortOrder                   int    `json:"sortOrder"`
+	Name                                string `json:"name"`
+	AmountCents                         int64  `json:"amountCents"`
+	Currency                            string `json:"currency"`
+	AnnualReturnRateBasisPoints         int    `json:"annualReturnRateBasisPoints"`
+	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
+	AnnualContributionCents             int64  `json:"annualContributionCents"`
+	SortOrder                           int    `json:"sortOrder"`
 }
 
 // Validate checks that a create request is public-safe and internally consistent.
@@ -51,6 +54,7 @@ func (request CreateFinancialItemRequest) Validate() error {
 		request.AmountCents,
 		request.Currency,
 		request.AnnualReturnRateBasisPoints,
+		request.DrawdownAnnualReturnRateBasisPoints,
 		request.AnnualContributionCents,
 		request.SortOrder,
 	)
@@ -63,12 +67,13 @@ func (request UpdateFinancialItemRequest) Validate() error {
 		request.AmountCents,
 		request.Currency,
 		request.AnnualReturnRateBasisPoints,
+		request.DrawdownAnnualReturnRateBasisPoints,
 		request.AnnualContributionCents,
 		request.SortOrder,
 	)
 }
 
-func validateFinancialItemFields(name string, amountCents int64, currency string, annualReturnRateBasisPoints int, annualContributionCents int64, sortOrder int) error {
+func validateFinancialItemFields(name string, amountCents int64, currency string, annualReturnRateBasisPoints int, drawdownAnnualReturnRateBasisPoints *int, annualContributionCents int64, sortOrder int) error {
 	var problems []string
 
 	if strings.TrimSpace(name) == "" {
@@ -85,6 +90,9 @@ func validateFinancialItemFields(name string, amountCents int64, currency string
 	}
 	if annualReturnRateBasisPoints < minimumAnnualReturnRateBasisPoints || annualReturnRateBasisPoints > maximumAnnualReturnRateBasisPoints {
 		problems = append(problems, fmt.Sprintf("annualReturnRateBasisPoints must be between %d and %d", minimumAnnualReturnRateBasisPoints, maximumAnnualReturnRateBasisPoints))
+	}
+	if drawdownAnnualReturnRateBasisPoints != nil && (*drawdownAnnualReturnRateBasisPoints < minimumAnnualReturnRateBasisPoints || *drawdownAnnualReturnRateBasisPoints > maximumAnnualReturnRateBasisPoints) {
+		problems = append(problems, fmt.Sprintf("drawdownAnnualReturnRateBasisPoints must be between %d and %d", minimumAnnualReturnRateBasisPoints, maximumAnnualReturnRateBasisPoints))
 	}
 	if annualContributionCents < 0 {
 		problems = append(problems, "annualContributionCents must be greater than or equal to 0")

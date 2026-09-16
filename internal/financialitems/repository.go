@@ -50,15 +50,16 @@ func (repository *InMemoryRepository) Create(ctx context.Context, request Create
 	repository.sequence++
 	now := time.Now().UTC()
 	item := FinancialItem{
-		ID:                          fmt.Sprintf("item_%06d", repository.sequence),
-		Name:                        request.Name,
-		AmountCents:                 request.AmountCents,
-		Currency:                    request.Currency,
-		AnnualReturnRateBasisPoints: request.AnnualReturnRateBasisPoints,
-		AnnualContributionCents:     request.AnnualContributionCents,
-		SortOrder:                   request.SortOrder,
-		CreatedAt:                   now,
-		UpdatedAt:                   now,
+		ID:                                  fmt.Sprintf("item_%06d", repository.sequence),
+		Name:                                request.Name,
+		AmountCents:                         request.AmountCents,
+		Currency:                            request.Currency,
+		AnnualReturnRateBasisPoints:         request.AnnualReturnRateBasisPoints,
+		DrawdownAnnualReturnRateBasisPoints: copyOptionalInt(request.DrawdownAnnualReturnRateBasisPoints),
+		AnnualContributionCents:             request.AnnualContributionCents,
+		SortOrder:                           request.SortOrder,
+		CreatedAt:                           now,
+		UpdatedAt:                           now,
 	}
 
 	repository.items[item.ID] = item
@@ -127,15 +128,16 @@ func (repository *InMemoryRepository) Update(ctx context.Context, id string, req
 	}
 
 	updated := FinancialItem{
-		ID:                          existing.ID,
-		Name:                        request.Name,
-		AmountCents:                 request.AmountCents,
-		Currency:                    request.Currency,
-		AnnualReturnRateBasisPoints: request.AnnualReturnRateBasisPoints,
-		AnnualContributionCents:     request.AnnualContributionCents,
-		SortOrder:                   request.SortOrder,
-		CreatedAt:                   existing.CreatedAt,
-		UpdatedAt:                   now,
+		ID:                                  existing.ID,
+		Name:                                request.Name,
+		AmountCents:                         request.AmountCents,
+		Currency:                            request.Currency,
+		AnnualReturnRateBasisPoints:         request.AnnualReturnRateBasisPoints,
+		DrawdownAnnualReturnRateBasisPoints: copyOptionalInt(request.DrawdownAnnualReturnRateBasisPoints),
+		AnnualContributionCents:             request.AnnualContributionCents,
+		SortOrder:                           request.SortOrder,
+		CreatedAt:                           existing.CreatedAt,
+		UpdatedAt:                           now,
 	}
 	repository.items[id] = updated
 	return updated, nil
@@ -155,4 +157,12 @@ func (repository *InMemoryRepository) Delete(ctx context.Context, id string) err
 	}
 	delete(repository.items, id)
 	return nil
+}
+
+func copyOptionalInt(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
 }
