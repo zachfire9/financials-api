@@ -325,6 +325,17 @@ Track each step as a living checklist. Each implementation PR should update this
 - UI scope: add export/download and import/upload controls that use JSON files only, show success/error states, and refresh the financial-items list plus projections after import.
 - Docs scope: document fake/example backup files only, warn that real financial backup JSON should stay out of git, and include a restore checklist.
 
+### Step 21: Optional annual contribution inflation
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add an option for annual contributions to grow by the projection's configured withdrawal inflation rate.
+- Backend scope: extend projection request handling with a boolean such as `inflateAnnualContributions`; when enabled, apply `annualWithdrawalInflationRateBasisPoints` to each item's annual contribution after each projection year during saving years, while preserving the current fixed-contribution behavior when omitted or false.
+- UI scope: add a checkbox associated with the annual-contribution/projection controls so users can opt into increasing contributions by the withdrawal inflation percentage specified in projection settings.
+- Test scope: add RED/GREEN projection-engine and endpoint tests covering fixed contributions by default, inflated contributions when enabled, rounding behavior, and interaction with `savingYears`/drawdown boundaries.
+- Docs scope: update fake projection examples and explain that this is a projection setting, not a persisted change to the saved financial item amount.
+
 ## Open decisions
 
 - Go HTTP stack/router choice: standard library only vs `chi` as the first router dependency.
