@@ -122,6 +122,7 @@ func TestFinancialItemsEndpointCreatesAndListsItems(t *testing.T) {
 		"amountCents":1250000,
 		"currency":"USD",
 		"annualReturnRateBasisPoints":700,
+		"drawdownAnnualReturnRateBasisPoints":350,
 		"annualContributionCents":300000,
 		"sortOrder":2
 	}`)
@@ -134,6 +135,9 @@ func TestFinancialItemsEndpointCreatesAndListsItems(t *testing.T) {
 	}
 	if created.AnnualReturnRateBasisPoints != 700 || created.AnnualContributionCents != 300000 || created.SortOrder != 2 {
 		t.Fatalf("unexpected projection fields: %+v", created)
+	}
+	if created.DrawdownAnnualReturnRateBasisPoints == nil || *created.DrawdownAnnualReturnRateBasisPoints != 350 {
+		t.Fatalf("unexpected drawdown return rate: %+v", created.DrawdownAnnualReturnRateBasisPoints)
 	}
 	if created.CreatedAt.IsZero() || created.UpdatedAt.IsZero() {
 		t.Fatalf("expected timestamps on created item: %+v", created)
@@ -164,6 +168,7 @@ func TestFinancialItemsEndpointReadsUpdatesAndDeletesItems(t *testing.T) {
 		"amountCents":400000,
 		"currency":"USD",
 		"annualReturnRateBasisPoints":450,
+		"drawdownAnnualReturnRateBasisPoints":150,
 		"annualContributionCents":50000,
 		"sortOrder":1
 	}`)
@@ -187,6 +192,7 @@ func TestFinancialItemsEndpointReadsUpdatesAndDeletesItems(t *testing.T) {
 		"amountCents":550000,
 		"currency":"USD",
 		"annualReturnRateBasisPoints":300,
+		"drawdownAnnualReturnRateBasisPoints":100,
 		"annualContributionCents":75000,
 		"sortOrder":3
 	}`))
@@ -199,6 +205,9 @@ func TestFinancialItemsEndpointReadsUpdatesAndDeletesItems(t *testing.T) {
 	decodeJSON(t, putRecorder, &updated)
 	if updated.ID != created.ID || updated.Name != "House down payment" || updated.AmountCents != 550000 {
 		t.Fatalf("unexpected updated item: %+v", updated)
+	}
+	if updated.DrawdownAnnualReturnRateBasisPoints == nil || *updated.DrawdownAnnualReturnRateBasisPoints != 100 {
+		t.Fatalf("unexpected updated drawdown return rate: %+v", updated.DrawdownAnnualReturnRateBasisPoints)
 	}
 	if !updated.UpdatedAt.After(created.UpdatedAt) {
 		t.Fatalf("expected updated timestamp after create timestamp, got created=%s updated=%s", created.UpdatedAt, updated.UpdatedAt)
@@ -230,6 +239,7 @@ func TestFinancialItemsEndpointReturnsValidationFailures(t *testing.T) {
 		"amountCents":-1,
 		"currency":"usd",
 		"annualReturnRateBasisPoints":100001,
+		"drawdownAnnualReturnRateBasisPoints":100001,
 		"annualContributionCents":-1,
 		"sortOrder":-1
 	}`))
@@ -241,7 +251,7 @@ func TestFinancialItemsEndpointReturnsValidationFailures(t *testing.T) {
 
 	var response errorResponse
 	decodeJSON(t, recorder, &response)
-	for _, want := range []string{"name is required", "amountCents", "currency", "annualReturnRateBasisPoints", "annualContributionCents", "sortOrder"} {
+	for _, want := range []string{"name is required", "amountCents", "currency", "annualReturnRateBasisPoints", "drawdownAnnualReturnRateBasisPoints", "annualContributionCents", "sortOrder"} {
 		if !strings.Contains(response.Error, want) {
 			t.Fatalf("expected validation response to contain %q, got %q", want, response.Error)
 		}
@@ -396,6 +406,7 @@ func TestProjectionEndpointUsesRepositoryItemsForDrawdownWhenItemsOmittedOrEmpty
 		"amountCents":10000000,
 		"currency":"USD",
 		"annualReturnRateBasisPoints":0,
+		"drawdownAnnualReturnRateBasisPoints":500,
 		"annualContributionCents":0,
 		"sortOrder":1
 	}`)
@@ -417,7 +428,7 @@ func TestProjectionEndpointUsesRepositoryItemsForDrawdownWhenItemsOmittedOrEmpty
 			if len(projection.Items) != 1 || projection.Items[0].ID != created.ID {
 				t.Fatalf("expected repository item identity in projection, got %+v", projection.Items)
 			}
-			assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, projections.PhaseDrawdown, 9000000, 0, 1000000, 0, 0)
+			assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, projections.PhaseDrawdown, 9500000, 0, 1000000, 500000, 0)
 		})
 	}
 }

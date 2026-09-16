@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton, generic financial it
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: drawdown workflow tracking after UI integration
-- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, and accumulation/drawdown `POST /projections`
-- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, and projection/drawdown UI integration tracking
+- Current branch focus: persisted per-item drawdown return assumptions
+- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior with optional per-item drawdown returns, and accumulation/drawdown `POST /projections`
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: persisted per-item drawdown return assumptions, followed by JSON backup export/import
+- Next planned area: UI controls for per-item drawdown returns, followed by JSON backup export/import
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -106,12 +106,12 @@ Expected response:
 
 ## Financial items API
 
-Financial items are generic projection inputs such as example savings, brokerage, or goal balances. Use fake/example data in committed docs and tests only.
+Financial items are generic projection inputs such as example savings, brokerage, or goal balances. Use fake/example data in committed docs and tests only. `drawdownAnnualReturnRateBasisPoints` is optional; omit it to reuse the regular `annualReturnRateBasisPoints` once drawdown begins.
 
 Create an item:
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/financial-items -Method Post -ContentType 'application/json' -Body '{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"annualContributionCents":300000,"sortOrder":1}'
+Invoke-RestMethod http://localhost:8080/financial-items -Method Post -ContentType 'application/json' -Body '{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"drawdownAnnualReturnRateBasisPoints":400,"annualContributionCents":300000,"sortOrder":1}'
 ```
 
 Expected response shape:
@@ -123,6 +123,7 @@ Expected response shape:
   "amountCents": 1250000,
   "currency": "USD",
   "annualReturnRateBasisPoints": 700,
+  "drawdownAnnualReturnRateBasisPoints": 400,
   "annualContributionCents": 300000,
   "sortOrder": 1,
   "createdAt": "2026-01-01T00:00:00Z",
@@ -145,7 +146,7 @@ Invoke-RestMethod http://localhost:8080/financial-items/item_000001
 Update one item:
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/financial-items/item_000001 -Method Put -ContentType 'application/json' -Body '{"name":"Example down payment fund","amountCents":1500000,"currency":"USD","annualReturnRateBasisPoints":400,"annualContributionCents":250000,"sortOrder":2}'
+Invoke-RestMethod http://localhost:8080/financial-items/item_000001 -Method Put -ContentType 'application/json' -Body '{"name":"Example down payment fund","amountCents":1500000,"currency":"USD","annualReturnRateBasisPoints":400,"drawdownAnnualReturnRateBasisPoints":250,"annualContributionCents":250000,"sortOrder":2}'
 ```
 
 Delete one item:
