@@ -319,7 +319,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [ ] **Status:** In progress — backend/API and UI support on current Step 20 branches.
 - **Branch:** `step-20-json-backup-export-import` / `step-20-json-backup-ui`
-- **Pull Request:** TBD
+- **Pull Request:** [financials-api #15](https://github.com/zachfire9/financials-api/pull/15), [financials-ui #8](https://github.com/zachfire9/financials-ui/pull/8)
 - Add a public-safe JSON backup workflow so all saved financial data can be exported, saved locally, and re-imported after memory/file storage is cleared.
 - Backend scope: add tested export/import endpoints for financial items using the existing repository boundary; validate import payload shape, reject malformed data, preserve explicit IDs/sort order/timestamps/drawdown return assumptions where safe, and make import replacement semantics explicit.
 - UI scope: add export/download and import/upload controls that use JSON files only, show success/error states, and refresh the financial-items list plus projections after import.
