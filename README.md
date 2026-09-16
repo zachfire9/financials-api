@@ -12,7 +12,7 @@ The first implementation phase focuses on the API skeleton, generic financial it
 - Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: JSON backup export/import for saving and restoring local financial data
+- Next planned area: persisted per-item drawdown return assumptions, followed by JSON backup export/import
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents

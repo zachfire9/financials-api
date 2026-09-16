@@ -304,13 +304,24 @@ Track each step as a living checklist. Each implementation PR should update this
 - Show phase labels in the existing year-grouped projection results.
 - Keep charts optional until the drawdown table workflow is proven.
 
-### Step 19: JSON backup export/import
+### Step 19: Per-item drawdown return assumptions
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add a persisted optional drawdown return rate per financial item so each item can use one return assumption while saving and a different return assumption once drawdown begins.
+- Backend scope: extend financial item request/response/storage models with optional `drawdownAnnualReturnRateBasisPoints`; validate it with the same basis-point bounds as accumulation return; keep existing items compatible by falling back to `annualReturnRateBasisPoints` when omitted.
+- Projection scope: pass the saved per-item drawdown return into repository-backed `POST /projections` requests; preserve the already-supported hypothetical `items[].drawdownAnnualReturnRateBasisPoints` behavior.
+- UI scope: add an optional "Drawdown return (%)" field to create/edit forms and projection display, with clear fallback wording when blank.
+- Docs scope: update fake examples only; do not commit real account-specific return assumptions.
+
+### Step 20: JSON backup export/import
 
 - [ ] **Status:** Pending
 - **Branch:** TBD
 - **Pull Request:** TBD
 - Add a public-safe JSON backup workflow so all saved financial data can be exported, saved locally, and re-imported after memory/file storage is cleared.
-- Backend scope: add tested export/import endpoints for financial items using the existing repository boundary; validate import payload shape, reject malformed data, preserve explicit IDs/sort order/timestamps where safe, and make import replacement semantics explicit.
+- Backend scope: add tested export/import endpoints for financial items using the existing repository boundary; validate import payload shape, reject malformed data, preserve explicit IDs/sort order/timestamps/drawdown return assumptions where safe, and make import replacement semantics explicit.
 - UI scope: add export/download and import/upload controls that use JSON files only, show success/error states, and refresh the financial-items list plus projections after import.
 - Docs scope: document fake/example backup files only, warn that real financial backup JSON should stay out of git, and include a restore checklist.
 
