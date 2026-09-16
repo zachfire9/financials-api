@@ -161,6 +161,32 @@ func TestCalculateInflatesAnnualWithdrawalsDuringDrawdown(t *testing.T) {
 	assertYearlyPhaseBalance(t, projection.Totals[3], 3, PhaseDrawdown, 1454600, 0, 6365400, 0, 0)
 }
 
+func TestCalculateInflatesAnnualWithdrawalDuringSavingYearsBeforeDrawdown(t *testing.T) {
+	projection, err := Calculate(Request{
+		SavingYears:                              1,
+		DrawdownYears:                            2,
+		AnnualWithdrawalCents:                    6000000,
+		AnnualWithdrawalInflationRateBasisPoints: 300,
+		Items: []ItemInput{{
+			ID:                          "item_000001",
+			Name:                        "Example retirement account",
+			AmountCents:                 20000000,
+			Currency:                    "USD",
+			AnnualReturnRateBasisPoints: 0,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("expected inflation-adjusted drawdown projection to calculate, got %v", err)
+	}
+
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, PhaseSaving, 20000000, 0, 0, 0, 0)
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, PhaseDrawdown, 13820000, 0, 6180000, 0, 0)
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[3], 3, PhaseDrawdown, 7454600, 0, 6365400, 0, 0)
+
+	assertYearlyPhaseBalance(t, projection.Totals[2], 2, PhaseDrawdown, 13820000, 0, 6180000, 0, 0)
+	assertYearlyPhaseBalance(t, projection.Totals[3], 3, PhaseDrawdown, 7454600, 0, 6365400, 0, 0)
+}
+
 func TestCalculateFloorsDrawdownBalancesAndReportsUnfundedWithdrawal(t *testing.T) {
 	projection, err := Calculate(Request{
 		SavingYears:           0,
