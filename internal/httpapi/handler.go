@@ -38,6 +38,8 @@ func NewHandlerWithRepositoryAndCORS(repository financialitems.Repository, corsC
 	mux.HandleFunc("GET /financial-items/{id}", api.handleFinancialItemsGet)
 	mux.HandleFunc("PUT /financial-items/{id}", api.handleFinancialItemsUpdate)
 	mux.HandleFunc("DELETE /financial-items/{id}", api.handleFinancialItemsDelete)
+	mux.HandleFunc("GET /financial-items/backup", api.handleFinancialItemsBackupExport)
+	mux.HandleFunc("POST /financial-items/backup", api.handleFinancialItemsBackupImport)
 	mux.HandleFunc("POST /projections", api.handleProjectionsCreate)
 	return withCORS(mux, corsConfig)
 }
@@ -142,6 +144,30 @@ func (api *apiHandler) handleFinancialItemsDelete(w http.ResponseWriter, r *http
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (api *apiHandler) handleFinancialItemsBackupExport(w http.ResponseWriter, r *http.Request) {
+	backup, err := api.financialItems.ExportBackup(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, backup)
+}
+
+func (api *apiHandler) handleFinancialItemsBackupImport(w http.ResponseWriter, r *http.Request) {
+	var backup financialitems.Backup
+	if err := decodeJSONBody(r, &backup); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	items, err := api.financialItems.ImportBackup(r.Context(), backup)
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
 }
 
 func (api *apiHandler) handleProjectionsCreate(w http.ResponseWriter, r *http.Request) {

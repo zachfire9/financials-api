@@ -19,6 +19,8 @@ type Repository interface {
 	Get(ctx context.Context, id string) (FinancialItem, error)
 	Update(ctx context.Context, id string, request UpdateFinancialItemRequest) (FinancialItem, error)
 	Delete(ctx context.Context, id string) error
+	ExportBackup(ctx context.Context) (Backup, error)
+	ImportBackup(ctx context.Context, backup Backup) ([]FinancialItem, error)
 }
 
 // InMemoryRepository is a simple deterministic local adapter for tests and early local development.

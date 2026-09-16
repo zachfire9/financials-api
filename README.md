@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton, generic financial it
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: persisted per-item drawdown return assumptions
-- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior with optional per-item drawdown returns, and accumulation/drawdown `POST /projections`
-- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, and projection/drawdown UI integration tracking
+- Current branch focus: JSON backup export/import
+- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, `GET`/`POST /financial-items/backup`, and accumulation/drawdown `POST /projections`
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, JSON backup replacement imports, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: UI controls for per-item drawdown returns, followed by JSON backup export/import
+- Next planned area: complete JSON backup export/import UI workflow and restore checklist
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -156,6 +156,32 @@ Invoke-RestMethod http://localhost:8080/financial-items/item_000001 -Method Dele
 ```
 
 Validation failures return `400` with an error message. Missing item IDs return `404`.
+
+## JSON backup export/import
+
+`GET /financial-items/backup` exports all saved financial items as a public JSON shape with `schemaVersion`, `exportedAt`, and `items`. Real backup files can contain private financial data; keep them local and out of git.
+
+Export an example backup:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/financial-items/backup | ConvertTo-Json -Depth 10 | Set-Content .\\financials-backup.example.local.json
+```
+
+Import replaces the current saved financial items with the validated backup payload. The import preserves explicit item IDs, sort order, timestamps, and optional drawdown return assumptions when the payload is valid.
+
+Restore checklist:
+
+1. Start the API with the intended storage adapter.
+2. Confirm the backup file is local/private and not under source control.
+3. Import the JSON backup.
+4. List financial items and recalculate projections.
+
+```powershell
+$backup = Get-Content .\\financials-backup.example.local.json -Raw
+Invoke-RestMethod http://localhost:8080/financial-items/backup -Method Post -ContentType 'application/json' -Body $backup
+```
+
+Validation failures return `400` and leave existing repository contents unchanged.
 
 ## Projection API
 
