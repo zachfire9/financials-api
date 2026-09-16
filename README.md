@@ -243,9 +243,9 @@ Expected response shape excerpt:
         {
           "year": 2,
           "phase": "drawdown",
-          "balanceCents": 14100000,
+          "balanceCents": 13920000,
           "contributionCents": 0,
-          "withdrawalCents": 6000000,
+          "withdrawalCents": 6180000,
           "growthCents": 0,
           "unfundedWithdrawalCents": 0
         }
@@ -260,7 +260,7 @@ Projection rules:
 - Accumulation-only requests use `years`, which must be between `1` and `75`.
 - Drawdown-capable requests use `savingYears` plus optional `drawdownYears`; `years` is mutually exclusive with those phase fields.
 - `drawdownYears` greater than `0` requires `annualWithdrawalCents`.
-- `annualWithdrawalInflationRateBasisPoints` is optional and defaults to `0`; `300` means the requested withdrawal grows by 3% each drawdown year.
+- `annualWithdrawalInflationRateBasisPoints` is optional and defaults to `0`; `300` means the requested withdrawal grows by 3% after each projection year, so one saving year makes the first drawdown withdrawal $61,800 from a $60,000 base.
 - `drawdownAnnualReturnRateBasisPoints` is optional per item; if omitted, drawdown years use the normal `annualReturnRateBasisPoints`.
 - All items in one projection must use the same currency.
 - Hypothetical `items` are validated but not saved.

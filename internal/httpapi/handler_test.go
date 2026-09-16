@@ -381,9 +381,9 @@ func TestProjectionEndpointCalculatesDrawdownHypotheticalItemsWithoutSaving(t *t
 	}
 	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[0], 0, projections.PhaseStarting, 20000000, 0, 0, 0, 0)
 	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, projections.PhaseSaving, 20100000, 100000, 0, 0, 0)
-	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, projections.PhaseDrawdown, 14100000, 0, 6000000, 0, 0)
-	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[3], 3, projections.PhaseDrawdown, 7920000, 0, 6180000, 0, 0)
-	assertProjectionPhaseBalance(t, projection.Totals[3], 3, projections.PhaseDrawdown, 7920000, 0, 6180000, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, projections.PhaseDrawdown, 13920000, 0, 6180000, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[3], 3, projections.PhaseDrawdown, 7554600, 0, 6365400, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Totals[3], 3, projections.PhaseDrawdown, 7554600, 0, 6365400, 0, 0)
 
 	listRecorder := httptest.NewRecorder()
 	listRequest := httptest.NewRequest(http.MethodGet, "/financial-items", nil)
