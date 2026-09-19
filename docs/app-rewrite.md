@@ -327,9 +327,9 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 21: Optional annual contribution inflation
 
-- [ ] **Status:** In progress — backend/API and UI support on current Step 21 branches.
+- [x] **Status:** Completed
 - **Branch:** `step-21-annual-contribution-inflation` / `step-21-annual-contribution-inflation-ui`
-- **Pull Request:** TBD
+- **Pull Request:** [financials-api #16](https://github.com/zachfire9/financials-api/pull/16), [financials-ui #9](https://github.com/zachfire9/financials-ui/pull/9)
 - Add an option for annual contributions to grow by the projection's configured withdrawal inflation rate.
 - Backend scope: extend projection request handling with a boolean such as `inflateAnnualContributions`; when enabled, apply `annualWithdrawalInflationRateBasisPoints` to each item's annual contribution after each projection year during saving years, while preserving the current fixed-contribution behavior when omitted or false.
 - UI scope: add a checkbox associated with the annual-contribution/projection controls so users can opt into increasing contributions by the withdrawal inflation percentage specified in projection settings.
