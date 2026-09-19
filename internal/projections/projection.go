@@ -30,6 +30,7 @@ type Request struct {
 	DrawdownYears                            int         `json:"drawdownYears"`
 	AnnualWithdrawalCents                    int64       `json:"annualWithdrawalCents"`
 	AnnualWithdrawalInflationRateBasisPoints int         `json:"annualWithdrawalInflationRateBasisPoints"`
+	InflateAnnualContributions               bool        `json:"inflateAnnualContributions"`
 	Items                                    []ItemInput `json:"items"`
 }
 
@@ -155,18 +156,26 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 		})
 	}
 
+	annualContributions := make([]int64, len(items))
+	for index, item := range items {
+		annualContributions[index] = item.AnnualContributionCents
+	}
 	for year := 1; year <= request.SavingYears; year++ {
 		for index, item := range items {
+			contributionCents := annualContributions[index]
 			growthCents := roundBasisPointGrowth(balances[index], item.AnnualReturnRateBasisPoints)
-			currentBalance := balances[index] + growthCents + item.AnnualContributionCents
+			currentBalance := balances[index] + growthCents + contributionCents
 			itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
 				Year:              year,
 				Phase:             PhaseSaving,
 				BalanceCents:      currentBalance,
-				ContributionCents: item.AnnualContributionCents,
+				ContributionCents: contributionCents,
 				GrowthCents:       growthCents,
 			})
 			balances[index] = currentBalance
+			if request.InflateAnnualContributions {
+				annualContributions[index] += roundBasisPointGrowth(contributionCents, request.AnnualWithdrawalInflationRateBasisPoints)
+			}
 		}
 	}
 

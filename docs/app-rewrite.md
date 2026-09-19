@@ -317,7 +317,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 20: JSON backup export/import
 
-- [ ] **Status:** In progress — backend/API and UI support on current Step 20 branches.
+- [x] **Status:** Completed
 - **Branch:** `step-20-json-backup-export-import` / `step-20-json-backup-ui`
 - **Pull Request:** [financials-api #15](https://github.com/zachfire9/financials-api/pull/15), [financials-ui #8](https://github.com/zachfire9/financials-ui/pull/8)
 - Add a public-safe JSON backup workflow so all saved financial data can be exported, saved locally, and re-imported after memory/file storage is cleared.
@@ -327,8 +327,8 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 21: Optional annual contribution inflation
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
+- [ ] **Status:** In progress — backend/API and UI support on current Step 21 branches.
+- **Branch:** `step-21-annual-contribution-inflation` / `step-21-annual-contribution-inflation-ui`
 - **Pull Request:** TBD
 - Add an option for annual contributions to grow by the projection's configured withdrawal inflation rate.
 - Backend scope: extend projection request handling with a boolean such as `inflateAnnualContributions`; when enabled, apply `annualWithdrawalInflationRateBasisPoints` to each item's annual contribution after each projection year during saving years, while preserving the current fixed-contribution behavior when omitted or false.

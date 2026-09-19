@@ -398,6 +398,38 @@ func TestProjectionEndpointCalculatesDrawdownHypotheticalItemsWithoutSaving(t *t
 	}
 }
 
+func TestProjectionEndpointAcceptsInflatedAnnualContributionRequests(t *testing.T) {
+	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/projections", strings.NewReader(`{
+		"savingYears":2,
+		"drawdownYears":0,
+		"annualWithdrawalInflationRateBasisPoints":300,
+		"inflateAnnualContributions":true,
+		"items":[
+			{
+				"name":"Example brokerage",
+				"amountCents":1000000,
+				"currency":"USD",
+				"annualReturnRateBasisPoints":0,
+				"annualContributionCents":100000,
+				"sortOrder":1
+			}
+		]
+	}`))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	var projection projections.Projection
+	decodeJSON(t, recorder, &projection)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, projections.PhaseSaving, 1100000, 100000, 0, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, projections.PhaseSaving, 1203000, 103000, 0, 0, 0)
+}
+
 func TestProjectionEndpointUsesRepositoryItemsForDrawdownWhenItemsOmittedOrEmpty(t *testing.T) {
 	repository := financialitems.NewInMemoryRepository()
 	handler := NewHandlerWithRepository(repository)

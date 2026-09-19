@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton, generic financial it
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: JSON backup export/import
+- Current branch focus: optional annual contribution inflation
 - Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, `GET`/`POST /financial-items/backup`, and accumulation/drawdown `POST /projections`
 - Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, JSON backup replacement imports, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: post-merge JSON backup smoke testing and then the next app rewrite step
+- Next planned area: review optional contribution inflation against local fake data, then continue the next app rewrite step
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -199,10 +199,10 @@ Calculate a hypothetical unsaved accumulation scenario by providing `items`:
 Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"years":2,"items":[{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"annualContributionCents":300000,"sortOrder":1}]}'
 ```
 
-Calculate a hypothetical unsaved drawdown scenario:
+Calculate a hypothetical unsaved drawdown scenario. Set `inflateAnnualContributions` to `true` when saving-year contributions should grow by `annualWithdrawalInflationRateBasisPoints`; omit it or set it to `false` to keep saved contribution amounts fixed. This changes the projection only and does not mutate saved financial item values.
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"savingYears":1,"drawdownYears":2,"annualWithdrawalCents":6000000,"annualWithdrawalInflationRateBasisPoints":300,"items":[{"name":"Example retirement account","amountCents":20000000,"currency":"USD","annualReturnRateBasisPoints":0,"drawdownAnnualReturnRateBasisPoints":0,"annualContributionCents":100000,"sortOrder":1}]}'
+Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"savingYears":1,"drawdownYears":2,"annualWithdrawalCents":6000000,"annualWithdrawalInflationRateBasisPoints":300,"inflateAnnualContributions":true,"items":[{"name":"Example retirement account","amountCents":20000000,"currency":"USD","annualReturnRateBasisPoints":0,"drawdownAnnualReturnRateBasisPoints":0,"annualContributionCents":100000,"sortOrder":1}]}'
 ```
 
 Expected response shape excerpt:
