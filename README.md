@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton, generic financial it
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: persisted per-item drawdown return assumptions
-- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior with optional per-item drawdown returns, and accumulation/drawdown `POST /projections`
-- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, and projection/drawdown UI integration tracking
+- Current branch focus: JSON backup export/import
+- Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, `GET`/`POST /financial-items/backup`, and accumulation/drawdown `POST /projections`
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, JSON backup replacement imports, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: UI controls for per-item drawdown returns, followed by JSON backup export/import
+- Next planned area: post-merge JSON backup smoke testing and then the next app rewrite step
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -157,6 +157,32 @@ Invoke-RestMethod http://localhost:8080/financial-items/item_000001 -Method Dele
 
 Validation failures return `400` with an error message. Missing item IDs return `404`.
 
+## JSON backup export/import
+
+`GET /financial-items/backup` exports all saved financial items as a public JSON shape with `schemaVersion`, `exportedAt`, and `items`. Real backup files can contain private financial data; keep them local and out of git.
+
+Export an example backup:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/financial-items/backup | ConvertTo-Json -Depth 10 | Set-Content .\\financials-backup.example.local.json
+```
+
+Import replaces the current saved financial items with the validated backup payload. The import preserves explicit item IDs, sort order, timestamps, and optional drawdown return assumptions when the payload is valid.
+
+Restore checklist:
+
+1. Start the API with the intended storage adapter.
+2. Confirm the backup file is local/private and not under source control.
+3. Import the JSON backup.
+4. List financial items and recalculate projections.
+
+```powershell
+$backup = Get-Content .\\financials-backup.example.local.json -Raw
+Invoke-RestMethod http://localhost:8080/financial-items/backup -Method Post -ContentType 'application/json' -Body $backup
+```
+
+Validation failures return `400` and leave existing repository contents unchanged.
+
 ## Projection API
 
 `POST /projections` calculates a deterministic whole-year projection with fake/example inputs or with the current saved financial items. It supports the original accumulation-only `years` shape and the newer explicit saving/drawdown shape.
@@ -217,9 +243,9 @@ Expected response shape excerpt:
         {
           "year": 2,
           "phase": "drawdown",
-          "balanceCents": 14100000,
+          "balanceCents": 13920000,
           "contributionCents": 0,
-          "withdrawalCents": 6000000,
+          "withdrawalCents": 6180000,
           "growthCents": 0,
           "unfundedWithdrawalCents": 0
         }
@@ -234,7 +260,7 @@ Projection rules:
 - Accumulation-only requests use `years`, which must be between `1` and `75`.
 - Drawdown-capable requests use `savingYears` plus optional `drawdownYears`; `years` is mutually exclusive with those phase fields.
 - `drawdownYears` greater than `0` requires `annualWithdrawalCents`.
-- `annualWithdrawalInflationRateBasisPoints` is optional and defaults to `0`; `300` means the requested withdrawal grows by 3% each drawdown year.
+- `annualWithdrawalInflationRateBasisPoints` is optional and defaults to `0`; `300` means the requested withdrawal grows by 3% after each projection year, so one saving year makes the first drawdown withdrawal $61,800 from a $60,000 base.
 - `drawdownAnnualReturnRateBasisPoints` is optional per item; if omitted, drawdown years use the normal `annualReturnRateBasisPoints`.
 - All items in one projection must use the same currency.
 - Hypothetical `items` are validated but not saved.

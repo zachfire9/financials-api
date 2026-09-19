@@ -381,9 +381,9 @@ func TestProjectionEndpointCalculatesDrawdownHypotheticalItemsWithoutSaving(t *t
 	}
 	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[0], 0, projections.PhaseStarting, 20000000, 0, 0, 0, 0)
 	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, projections.PhaseSaving, 20100000, 100000, 0, 0, 0)
-	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, projections.PhaseDrawdown, 14100000, 0, 6000000, 0, 0)
-	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[3], 3, projections.PhaseDrawdown, 7920000, 0, 6180000, 0, 0)
-	assertProjectionPhaseBalance(t, projection.Totals[3], 3, projections.PhaseDrawdown, 7920000, 0, 6180000, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, projections.PhaseDrawdown, 13920000, 0, 6180000, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[3], 3, projections.PhaseDrawdown, 7554600, 0, 6365400, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Totals[3], 3, projections.PhaseDrawdown, 7554600, 0, 6365400, 0, 0)
 
 	listRecorder := httptest.NewRecorder()
 	listRequest := httptest.NewRequest(http.MethodGet, "/financial-items", nil)
@@ -430,6 +430,98 @@ func TestProjectionEndpointUsesRepositoryItemsForDrawdownWhenItemsOmittedOrEmpty
 			}
 			assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, projections.PhaseDrawdown, 9500000, 0, 1000000, 500000, 0)
 		})
+	}
+}
+
+func TestFinancialItemsBackupEndpointExportsAndImportsReplacementBackup(t *testing.T) {
+	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+	created := createFinancialItem(t, handler, `{
+		"name":"Example brokerage",
+		"amountCents":1250000,
+		"currency":"USD",
+		"annualReturnRateBasisPoints":700,
+		"drawdownAnnualReturnRateBasisPoints":350,
+		"annualContributionCents":300000,
+		"sortOrder":2
+	}`)
+
+	exportRecorder := httptest.NewRecorder()
+	exportRequest := httptest.NewRequest(http.MethodGet, "/financial-items/backup", nil)
+	handler.ServeHTTP(exportRecorder, exportRequest)
+
+	if exportRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, exportRecorder.Code, exportRecorder.Body.String())
+	}
+	var backup financialitems.Backup
+	decodeJSON(t, exportRecorder, &backup)
+	if backup.SchemaVersion != 1 || backup.ExportedAt.IsZero() {
+		t.Fatalf("expected backup metadata, got %+v", backup)
+	}
+	if len(backup.Items) != 1 || backup.Items[0].ID != created.ID {
+		t.Fatalf("expected exported item %q, got %+v", created.ID, backup.Items)
+	}
+	if backup.Items[0].DrawdownAnnualReturnRateBasisPoints == nil || *backup.Items[0].DrawdownAnnualReturnRateBasisPoints != 350 {
+		t.Fatalf("expected exported drawdown return rate, got %+v", backup.Items[0].DrawdownAnnualReturnRateBasisPoints)
+	}
+
+	backup.Items[0].Name = "Restored brokerage"
+	backup.Items[0].SortOrder = 0
+	backup.Items = append(backup.Items, financialitems.FinancialItem{
+		ID:                                  "item_000099",
+		Name:                                "Restored savings",
+		AmountCents:                         250000,
+		Currency:                            "USD",
+		AnnualReturnRateBasisPoints:         450,
+		DrawdownAnnualReturnRateBasisPoints: intPointer(125),
+		AnnualContributionCents:             120000,
+		SortOrder:                           1,
+		CreatedAt:                           created.CreatedAt,
+		UpdatedAt:                           created.UpdatedAt,
+	})
+
+	body, err := json.Marshal(backup)
+	if err != nil {
+		t.Fatalf("marshal backup: %v", err)
+	}
+	importRecorder := httptest.NewRecorder()
+	importRequest := httptest.NewRequest(http.MethodPost, "/financial-items/backup", bytes.NewReader(body))
+	handler.ServeHTTP(importRecorder, importRequest)
+
+	if importRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, importRecorder.Code, importRecorder.Body.String())
+	}
+	var imported []financialitems.FinancialItem
+	decodeJSON(t, importRecorder, &imported)
+	if len(imported) != 2 {
+		t.Fatalf("expected two imported items, got %+v", imported)
+	}
+	if imported[0].ID != created.ID || imported[0].Name != "Restored brokerage" || imported[1].ID != "item_000099" {
+		t.Fatalf("expected replacement import preserving IDs and order, got %+v", imported)
+	}
+	if imported[1].DrawdownAnnualReturnRateBasisPoints == nil || *imported[1].DrawdownAnnualReturnRateBasisPoints != 125 {
+		t.Fatalf("expected imported drawdown return rate, got %+v", imported[1].DrawdownAnnualReturnRateBasisPoints)
+	}
+}
+
+func TestFinancialItemsBackupEndpointRejectsMalformedImports(t *testing.T) {
+	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/financial-items/backup", strings.NewReader(`{
+		"schemaVersion":1,
+		"items":[{"id":"item_000001","name":" ","amountCents":-1,"currency":"usd","annualReturnRateBasisPoints":100001,"drawdownAnnualReturnRateBasisPoints":100001,"annualContributionCents":-1,"sortOrder":-1}]
+	}`))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	}
+	var response errorResponse
+	decodeJSON(t, recorder, &response)
+	for _, want := range []string{"name", "amountCents", "currency", "annualReturnRateBasisPoints", "drawdownAnnualReturnRateBasisPoints", "annualContributionCents", "sortOrder"} {
+		if !strings.Contains(response.Error, want) {
+			t.Fatalf("expected import validation response to contain %q, got %q", want, response.Error)
+		}
 	}
 }
 
@@ -582,6 +674,10 @@ func createFinancialItem(t *testing.T, handler http.Handler, body string) financ
 	var created financialitems.FinancialItem
 	decodeJSON(t, recorder, &created)
 	return created
+}
+
+func intPointer(value int) *int {
+	return &value
 }
 
 func decodeJSON(t *testing.T, recorder *httptest.ResponseRecorder, destination any) {

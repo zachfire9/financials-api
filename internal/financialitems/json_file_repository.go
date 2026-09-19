@@ -73,6 +73,21 @@ func (repository *JSONFileRepository) Delete(ctx context.Context, id string) err
 	return repository.save()
 }
 
+func (repository *JSONFileRepository) ExportBackup(ctx context.Context) (Backup, error) {
+	return repository.inMemory.ExportBackup(ctx)
+}
+
+func (repository *JSONFileRepository) ImportBackup(ctx context.Context, backup Backup) ([]FinancialItem, error) {
+	items, err := repository.inMemory.ImportBackup(ctx, backup)
+	if err != nil {
+		return nil, err
+	}
+	if err := repository.save(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (repository *JSONFileRepository) load() error {
 	contents, err := os.ReadFile(repository.path)
 	if err != nil {

@@ -171,6 +171,9 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 	}
 
 	annualWithdrawalCents := request.AnnualWithdrawalCents
+	for range request.SavingYears {
+		annualWithdrawalCents += roundBasisPointGrowth(annualWithdrawalCents, request.AnnualWithdrawalInflationRateBasisPoints)
+	}
 	for drawdownYear := 1; drawdownYear <= request.DrawdownYears; drawdownYear++ {
 		year := request.SavingYears + drawdownYear
 		priorBalances := append([]int64(nil), balances...)

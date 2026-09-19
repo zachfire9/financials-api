@@ -306,9 +306,9 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 19: Per-item drawdown return assumptions
 
-- [ ] **Status:** In progress — backend/API support on current branch; UI support will follow in `financials-ui`.
-- **Branch:** `step-19-per-item-drawdown-return-assumptions`
-- **Pull Request:** [financials-api #14](https://github.com/zachfire9/financials-api/pull/14)
+- [x] **Status:** Completed
+- **Branch:** `step-19-per-item-drawdown-return-assumptions` / `step-19-per-item-drawdown-return-ui`
+- **Pull Request:** [financials-api #14](https://github.com/zachfire9/financials-api/pull/14), [financials-ui #7](https://github.com/zachfire9/financials-ui/pull/7)
 - Add a persisted optional drawdown return rate per financial item so each item can use one return assumption while saving and a different return assumption once drawdown begins.
 - Backend scope: extend financial item request/response/storage models with optional `drawdownAnnualReturnRateBasisPoints`; validate it with the same basis-point bounds as accumulation return; keep existing items compatible by falling back to `annualReturnRateBasisPoints` when omitted.
 - Projection scope: pass the saved per-item drawdown return into repository-backed `POST /projections` requests; preserve the already-supported hypothetical `items[].drawdownAnnualReturnRateBasisPoints` behavior.
@@ -317,13 +317,24 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 20: JSON backup export/import
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
+- [ ] **Status:** In progress — backend/API and UI support on current Step 20 branches.
+- **Branch:** `step-20-json-backup-export-import` / `step-20-json-backup-ui`
+- **Pull Request:** [financials-api #15](https://github.com/zachfire9/financials-api/pull/15), [financials-ui #8](https://github.com/zachfire9/financials-ui/pull/8)
 - Add a public-safe JSON backup workflow so all saved financial data can be exported, saved locally, and re-imported after memory/file storage is cleared.
 - Backend scope: add tested export/import endpoints for financial items using the existing repository boundary; validate import payload shape, reject malformed data, preserve explicit IDs/sort order/timestamps/drawdown return assumptions where safe, and make import replacement semantics explicit.
 - UI scope: add export/download and import/upload controls that use JSON files only, show success/error states, and refresh the financial-items list plus projections after import.
 - Docs scope: document fake/example backup files only, warn that real financial backup JSON should stay out of git, and include a restore checklist.
+
+### Step 21: Optional annual contribution inflation
+
+- [ ] **Status:** Pending
+- **Branch:** TBD
+- **Pull Request:** TBD
+- Add an option for annual contributions to grow by the projection's configured withdrawal inflation rate.
+- Backend scope: extend projection request handling with a boolean such as `inflateAnnualContributions`; when enabled, apply `annualWithdrawalInflationRateBasisPoints` to each item's annual contribution after each projection year during saving years, while preserving the current fixed-contribution behavior when omitted or false.
+- UI scope: add a checkbox associated with the annual-contribution/projection controls so users can opt into increasing contributions by the withdrawal inflation percentage specified in projection settings.
+- Test scope: add RED/GREEN projection-engine and endpoint tests covering fixed contributions by default, inflated contributions when enabled, rounding behavior, and interaction with `savingYears`/drawdown boundaries.
+- Docs scope: update fake projection examples and explain that this is a projection setting, not a persisted change to the saved financial item amount.
 
 ## Open decisions
 

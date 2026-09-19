@@ -157,8 +157,8 @@ These decisions materially affect implementation, so the planning step should no
    - Alternative: allow continuing per-item contributions even during drawdown.
 
 6. **Withdrawal inflation**
-   - Recommended v1: apply `annualWithdrawalInflationRateBasisPoints` to the annual withdrawal amount after each drawdown year.
-   - Example: `annualWithdrawalCents: 6000000` and `annualWithdrawalInflationRateBasisPoints: 300` produce drawdown requests of $60,000.00, $61,800.00, $63,654.00, etc.
+   - Recommended v1: apply `annualWithdrawalInflationRateBasisPoints` to the annual withdrawal amount after each projection year, including saving years before drawdown starts.
+   - Example: with `annualWithdrawalCents: 6000000`, `annualWithdrawalInflationRateBasisPoints: 300`, and `savingYears: 1`, the first two drawdown requests are $61,800.00 and $63,654.00; with `savingYears: 0`, they are $60,000.00 and $61,800.00.
    - Default to `0` so existing fixed-withdrawal calculations remain stable.
 
 7. **Default drawdown horizon**
