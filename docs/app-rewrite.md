@@ -330,9 +330,9 @@ Track each step as a living checklist. Each implementation PR should update this
 - [x] **Status:** Completed
 - **Branch:** `step-21-annual-contribution-inflation` / `step-21-annual-contribution-inflation-ui`
 - **Pull Request:** [financials-api #16](https://github.com/zachfire9/financials-api/pull/16), [financials-ui #9](https://github.com/zachfire9/financials-ui/pull/9)
-- Add an option for annual contributions to grow by the projection's configured withdrawal inflation rate.
-- Backend scope: extend projection request handling with a boolean such as `inflateAnnualContributions`; when enabled, apply `annualWithdrawalInflationRateBasisPoints` to each item's annual contribution after each projection year during saving years, while preserving the current fixed-contribution behavior when omitted or false.
-- UI scope: add a checkbox associated with the annual-contribution/projection controls so users can opt into increasing contributions by the withdrawal inflation percentage specified in projection settings.
+- Add an item-level option for annual contributions to grow by the projection's configured withdrawal inflation rate.
+- Backend scope: extend financial item and projection item handling with `inflateAnnualContribution`; when enabled on an item, apply `annualWithdrawalInflationRateBasisPoints` to that item's annual contribution after each projection year during saving years, while preserving fixed-contribution behavior for omitted or false items.
+- UI scope: add the checkbox to the financial item create/edit form and item summaries, not the projection controls, so users can choose which accounts (for example 401k vs IRA) match inflation.
 - Test scope: add RED/GREEN projection-engine and endpoint tests covering fixed contributions by default, inflated contributions when enabled, rounding behavior, and interaction with `savingYears`/drawdown boundaries.
 - Docs scope: update fake projection examples and explain that this is a projection setting, not a persisted change to the saved financial item amount.
 

@@ -9,10 +9,10 @@ The first implementation phase focuses on the API skeleton, generic financial it
 - Runtime: Go HTTP API
 - Current branch focus: optional annual contribution inflation
 - Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, `GET`/`POST /financial-items/backup`, and accumulation/drawdown `POST /projections`
-- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, JSON backup replacement imports, and projection/drawdown UI integration tracking
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, per-item contribution inflation flags, JSON backup replacement imports, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: review optional contribution inflation against local fake data, then continue the next app rewrite step
+- Next planned area: review per-item contribution inflation against local fake data, then continue the next app rewrite step
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -111,7 +111,7 @@ Financial items are generic projection inputs such as example savings, brokerage
 Create an item:
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/financial-items -Method Post -ContentType 'application/json' -Body '{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"drawdownAnnualReturnRateBasisPoints":400,"annualContributionCents":300000,"sortOrder":1}'
+Invoke-RestMethod http://localhost:8080/financial-items -Method Post -ContentType 'application/json' -Body '{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"drawdownAnnualReturnRateBasisPoints":400,"annualContributionCents":300000,"inflateAnnualContribution":true,"sortOrder":1}'
 ```
 
 Expected response shape:
@@ -125,6 +125,7 @@ Expected response shape:
   "annualReturnRateBasisPoints": 700,
   "drawdownAnnualReturnRateBasisPoints": 400,
   "annualContributionCents": 300000,
+  "inflateAnnualContribution": true,
   "sortOrder": 1,
   "createdAt": "2026-01-01T00:00:00Z",
   "updatedAt": "2026-01-01T00:00:00Z"
@@ -146,7 +147,7 @@ Invoke-RestMethod http://localhost:8080/financial-items/item_000001
 Update one item:
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/financial-items/item_000001 -Method Put -ContentType 'application/json' -Body '{"name":"Example down payment fund","amountCents":1500000,"currency":"USD","annualReturnRateBasisPoints":400,"drawdownAnnualReturnRateBasisPoints":250,"annualContributionCents":250000,"sortOrder":2}'
+Invoke-RestMethod http://localhost:8080/financial-items/item_000001 -Method Put -ContentType 'application/json' -Body '{"name":"Example down payment fund","amountCents":1500000,"currency":"USD","annualReturnRateBasisPoints":400,"drawdownAnnualReturnRateBasisPoints":250,"annualContributionCents":250000,"inflateAnnualContribution":false,"sortOrder":2}'
 ```
 
 Delete one item:
@@ -196,13 +197,13 @@ Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'a
 Calculate a hypothetical unsaved accumulation scenario by providing `items`:
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"years":2,"items":[{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"annualContributionCents":300000,"sortOrder":1}]}'
+Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"years":2,"items":[{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"annualContributionCents":300000,"inflateAnnualContribution":true,"sortOrder":1}]}'
 ```
 
-Calculate a hypothetical unsaved drawdown scenario. Set `inflateAnnualContributions` to `true` when saving-year contributions should grow by `annualWithdrawalInflationRateBasisPoints`; omit it or set it to `false` to keep saved contribution amounts fixed. This changes the projection only and does not mutate saved financial item values.
+Calculate a hypothetical unsaved drawdown scenario. Set `inflateAnnualContribution` to `true` on individual items whose saving-year contributions should grow by `annualWithdrawalInflationRateBasisPoints`; omit it or set it to `false` on items whose contributions should stay fixed. Projection calculations preserve the base annual contribution value on each item.
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"savingYears":1,"drawdownYears":2,"annualWithdrawalCents":6000000,"annualWithdrawalInflationRateBasisPoints":300,"inflateAnnualContributions":true,"items":[{"name":"Example retirement account","amountCents":20000000,"currency":"USD","annualReturnRateBasisPoints":0,"drawdownAnnualReturnRateBasisPoints":0,"annualContributionCents":100000,"sortOrder":1}]}'
+Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"savingYears":1,"drawdownYears":2,"annualWithdrawalCents":6000000,"annualWithdrawalInflationRateBasisPoints":300,"items":[{"name":"Example retirement account","amountCents":20000000,"currency":"USD","annualReturnRateBasisPoints":0,"drawdownAnnualReturnRateBasisPoints":0,"annualContributionCents":100000,"inflateAnnualContribution":true,"sortOrder":1}]}'
 ```
 
 Expected response shape excerpt:
@@ -221,6 +222,7 @@ Expected response shape excerpt:
       "annualReturnRateBasisPoints": 0,
       "drawdownAnnualReturnRateBasisPoints": 0,
       "annualContributionCents": 100000,
+      "inflateAnnualContribution": true,
       "yearlyBalances": [
         {
           "year": 0,

@@ -30,7 +30,6 @@ type Request struct {
 	DrawdownYears                            int         `json:"drawdownYears"`
 	AnnualWithdrawalCents                    int64       `json:"annualWithdrawalCents"`
 	AnnualWithdrawalInflationRateBasisPoints int         `json:"annualWithdrawalInflationRateBasisPoints"`
-	InflateAnnualContributions               bool        `json:"inflateAnnualContributions"`
 	Items                                    []ItemInput `json:"items"`
 }
 
@@ -43,6 +42,7 @@ type ItemInput struct {
 	AnnualReturnRateBasisPoints         int    `json:"annualReturnRateBasisPoints"`
 	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
+	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
 	SortOrder                           int    `json:"sortOrder"`
 }
 
@@ -64,6 +64,7 @@ type ProjectedItem struct {
 	AnnualReturnRateBasisPoints         int             `json:"annualReturnRateBasisPoints"`
 	DrawdownAnnualReturnRateBasisPoints *int            `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64           `json:"annualContributionCents"`
+	InflateAnnualContribution           bool            `json:"inflateAnnualContribution"`
 	YearlyBalances                      []YearlyBalance `json:"yearlyBalances"`
 }
 
@@ -173,7 +174,7 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 				GrowthCents:       growthCents,
 			})
 			balances[index] = currentBalance
-			if request.InflateAnnualContributions {
+			if item.InflateAnnualContribution {
 				annualContributions[index] += roundBasisPointGrowth(contributionCents, request.AnnualWithdrawalInflationRateBasisPoints)
 			}
 		}
@@ -308,6 +309,7 @@ func newProjectedItem(input ItemInput, yearlyBalances []YearlyBalance) Projected
 		AnnualReturnRateBasisPoints:         input.AnnualReturnRateBasisPoints,
 		DrawdownAnnualReturnRateBasisPoints: input.DrawdownAnnualReturnRateBasisPoints,
 		AnnualContributionCents:             input.AnnualContributionCents,
+		InflateAnnualContribution:           input.InflateAnnualContribution,
 		YearlyBalances:                      yearlyBalances,
 	}
 }

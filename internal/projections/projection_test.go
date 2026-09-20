@@ -216,7 +216,6 @@ func TestCalculateInflatesAnnualContributionsDuringSavingYears(t *testing.T) {
 		DrawdownYears:                            1,
 		AnnualWithdrawalCents:                    500000,
 		AnnualWithdrawalInflationRateBasisPoints: 300,
-		InflateAnnualContributions:               true,
 		Items: []ItemInput{{
 			ID:                          "item_000001",
 			Name:                        "Example brokerage",
@@ -224,6 +223,7 @@ func TestCalculateInflatesAnnualContributionsDuringSavingYears(t *testing.T) {
 			Currency:                    "USD",
 			AnnualReturnRateBasisPoints: 0,
 			AnnualContributionCents:     100000,
+			InflateAnnualContribution:   true,
 		}},
 	})
 	if err != nil {
@@ -245,7 +245,6 @@ func TestCalculateInflatesAnnualContributionsWithHalfAwayFromZeroRounding(t *tes
 	projection, err := Calculate(Request{
 		SavingYears:                              2,
 		AnnualWithdrawalInflationRateBasisPoints: 100,
-		InflateAnnualContributions:               true,
 		Items: []ItemInput{{
 			ID:                          "rounding_example",
 			Name:                        "Contribution rounding example",
@@ -253,6 +252,7 @@ func TestCalculateInflatesAnnualContributionsWithHalfAwayFromZeroRounding(t *tes
 			Currency:                    "USD",
 			AnnualReturnRateBasisPoints: 0,
 			AnnualContributionCents:     50,
+			InflateAnnualContribution:   true,
 		}},
 	})
 	if err != nil {
@@ -261,6 +261,41 @@ func TestCalculateInflatesAnnualContributionsWithHalfAwayFromZeroRounding(t *tes
 
 	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, PhaseSaving, 50, 50, 0, 0, 0)
 	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, PhaseSaving, 101, 51, 0, 0, 0)
+}
+
+func TestCalculateInflatesOnlySelectedItemAnnualContributions(t *testing.T) {
+	projection, err := Calculate(Request{
+		SavingYears:                              2,
+		AnnualWithdrawalInflationRateBasisPoints: 300,
+		Items: []ItemInput{
+			{
+				ID:                          "401k",
+				Name:                        "Example 401k",
+				AmountCents:                 1000000,
+				Currency:                    "USD",
+				AnnualReturnRateBasisPoints: 0,
+				AnnualContributionCents:     100000,
+				InflateAnnualContribution:   true,
+				SortOrder:                   1,
+			},
+			{
+				ID:                          "ira",
+				Name:                        "Example IRA",
+				AmountCents:                 2000000,
+				Currency:                    "USD",
+				AnnualReturnRateBasisPoints: 0,
+				AnnualContributionCents:     100000,
+				SortOrder:                   2,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected selected item contribution inflation projection to calculate, got %v", err)
+	}
+
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, PhaseSaving, 1203000, 103000, 0, 0, 0)
+	assertYearlyPhaseBalance(t, projection.Items[1].YearlyBalances[2], 2, PhaseSaving, 2200000, 100000, 0, 0, 0)
+	assertYearlyPhaseBalance(t, projection.Totals[2], 2, PhaseSaving, 3403000, 203000, 0, 0, 0)
 }
 
 func TestCalculateFloorsDrawdownBalancesAndReportsUnfundedWithdrawal(t *testing.T) {
