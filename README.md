@@ -12,7 +12,7 @@ The first implementation phase focuses on the API skeleton, generic financial it
 - Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, per-item contribution inflation flags, JSON backup replacement imports, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: review per-item contribution inflation against local fake data, then continue the next app rewrite step
+- Next planned areas: ephemeral browser-owned import/export session mode, then AWS serverless deployment planning for Lambda + HTTP API + DynamoDB and S3/CloudFront static hosting with access control before real data
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
