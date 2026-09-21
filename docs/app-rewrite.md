@@ -340,7 +340,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-22-ephemeral-session-mode` / `step-22-ephemeral-session-ui`
-- **Pull Request:** TBD
+- **Pull Request:** API [#17](https://github.com/zachfire9/financials-api/pull/17) / UI [#10](https://github.com/zachfire9/financials-ui/pull/10)
 - Add a browser-owned, non-persistent mode for privacy-first AWS usage where users import a local JSON backup, work with the data in React state, and export JSON again before closing the browser if they want to keep changes.
 - Backend scope: add explicit `FINANCIALS_STORAGE_DRIVER=ephemeral` support as a non-durable runtime signal for stateless/request-supplied projection workflows; keep Lambda/process memory out of the deployed persistence story because Lambda containers are reused, discarded, and scaled independently of browser sessions.
 - UI scope: when `VITE_FINANCIALS_SESSION_MODE=ephemeral` is enabled, load items from JSON import into browser state, perform create/edit/delete/reorder locally, send the current in-memory items as caller-supplied `items` in `POST /projections`, and provide a clear export/download path for saving changes.
