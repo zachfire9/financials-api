@@ -370,7 +370,7 @@ Track each step as a living checklist. Each implementation PR should update this
 - UI scope: make the production build consume a placeholder API base URL for the deployed API, keep local dev proxy behavior unchanged, and document how ephemeral mode vs persistent mode changes frontend behavior.
 - Infrastructure/deploy scope: either have the API SAM stack output the frontend bucket/distribution/API URL or add a small UI-side deploy script that syncs `dist/` to the provided bucket; keep real bucket names, distribution IDs, custom domains, and credentials out of committed docs unless they are intentionally public-safe placeholders.
 - Verification scope: run `npm test`, `npm run build`, static asset deployment verification, and a browser smoke test against fake data through the deployed API path.
-- Cost recommendation: use S3/CloudFront for static assets because the baseline cost is near zero for small personal traffic; consider Amplify Hosting later only if its workflow convenience is worth the extra service abstraction.
+- Cost recommendation: keep S3/CloudFront as the initial static hosting path because the baseline cost is near zero for small personal traffic and it fits explicit AWS infrastructure planning; keep Amplify Hosting documented as a later migration option if its familiar workflow and GitHub-connected deploys become worth the extra service abstraction.
 
 ### Step 25: Deployed access control before real data
 
