@@ -1,4 +1,9 @@
 .PHONY: build-FinancialsApiFunction
 
+export GOOS := linux
+export GOARCH := arm64
+
+BOOTSTRAP := $(ARTIFACTS_DIR)/bootstrap
+
 build-FinancialsApiFunction:
-	GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o $(ARTIFACTS_DIR)/bootstrap ./cmd/lambda
+	go build -tags lambda.norpc -o "$(BOOTSTRAP)" ./cmd/lambda
