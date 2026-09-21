@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	StorageDriverMemory = "memory"
-	StorageDriverJSON   = "json"
+	StorageDriverMemory    = "memory"
+	StorageDriverJSON      = "json"
+	StorageDriverEphemeral = "ephemeral"
 )
 
 // Config contains public-safe local runtime configuration for the API.
@@ -36,10 +37,10 @@ func Load(envFilePath string) (Config, error) {
 		AllowedOrigins: splitCSV(valueFor("FINANCIALS_ALLOWED_ORIGINS", envFileValues, "")),
 	}
 
-	if cfg.StorageDriver == StorageDriverMemory {
+	if cfg.StorageDriver == StorageDriverMemory || cfg.StorageDriver == StorageDriverEphemeral {
 		cfg.StoragePath = ""
 	}
-	if cfg.StorageDriver != StorageDriverMemory && cfg.StorageDriver != StorageDriverJSON {
+	if cfg.StorageDriver != StorageDriverMemory && cfg.StorageDriver != StorageDriverJSON && cfg.StorageDriver != StorageDriverEphemeral {
 		return Config{}, fmt.Errorf("unsupported FINANCIALS_STORAGE_DRIVER %q", cfg.StorageDriver)
 	}
 	if cfg.StorageDriver == StorageDriverJSON && strings.TrimSpace(cfg.StoragePath) == "" {
