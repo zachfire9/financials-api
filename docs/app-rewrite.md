@@ -352,7 +352,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed
 - **Branch:** `step-23-aws-serverless-ephemeral-backend`
-- **Pull Request:** TBD
+- **Pull Request:** [#18](https://github.com/zachfire9/financials-api/pull/18)
 - Add the cost-effective ephemeral AWS backend path using AWS SAM, API Gateway HTTP API, and a Go Lambda function.
 - Architecture recommendation: browser calls API Gateway HTTP API, API Gateway invokes the Go Lambda handler, and the UI sends request-supplied projection items for browser-owned sessions instead of relying on Lambda/process memory as session storage.
 - Backend scope: add a Lambda entrypoint and HTTP API v2 adapter that reuse the existing `net/http` handler and repository interface; keep local `memory`/`json` drivers unchanged for development.
