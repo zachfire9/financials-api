@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Public-safe AWS serverless deployment template for the Financials API.
+
+Parameters:
+  FinancialsStorageDriver:
+    Type: String
+    Default: ephemeral
+    AllowedValues:
+      - ephemeral
+      - memory
+    Description: Use ephemeral for browser-owned AWS sessions. Memory is available for fake-data smoke tests only.
+  FinancialsAllowedOrigins:
+    Type: String
+    Default: ''
+    Description: Comma-separated static UI origins allowed by the API CORS middleware. Keep real values in deploy parameters, not git.
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 128
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        FINANCIALS_STORAGE_DRIVER: !Ref FinancialsStorageDriver
+        FINANCIALS_ALLOWED_ORIGINS: !Ref FinancialsAllowedOrigins
+
+Resources:
+  FinancialsHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Description: HTTP API for the Financials API Lambda backend.
+
+  FinancialsApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Description: Ephemeral Financials API backend for browser-owned AWS sessions.
+      CodeUri: .
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Events:
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FinancialsHttpApi
+            Path: /
+            Method: ANY
+        ApiProxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FinancialsHttpApi
+            Path: /{proxy+}
+            Method: ANY
+
+Outputs:
+  FinancialsApiUrl:
+    Description: Base URL for the deployed Financials HTTP API.
+    Value: !Sub 'https://${FinancialsHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  FinancialsStorageMode:
+    Description: Storage mode configured for the deployed Lambda.
+    Value: !Ref FinancialsStorageDriver

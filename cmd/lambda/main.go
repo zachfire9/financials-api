@@ -2,10 +2,11 @@ package main
 
 import (
 	"log"
-	"net/http"
 
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/zachfire9/financials-api/internal/app"
 	"github.com/zachfire9/financials-api/internal/config"
+	"github.com/zachfire9/financials-api/internal/lambdahttp"
 )
 
 func main() {
@@ -19,13 +20,7 @@ func main() {
 		log.Fatalf("configure application: %v", err)
 	}
 
-	server := &http.Server{
-		Addr:    cfg.APIAddr,
-		Handler: handler,
-	}
-
-	log.Printf("financials-api listening on %s with %s storage", cfg.APIAddr, cfg.StorageDriver)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("server failed: %v", err)
-	}
+	log.Printf("financials-api lambda starting with %s storage", cfg.StorageDriver)
+	adapter := lambdahttp.NewAdapter(handler)
+	lambda.Start(adapter.Proxy)
 }

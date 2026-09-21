@@ -348,18 +348,18 @@ Track each step as a living checklist. Each implementation PR should update this
 - Test scope: cover import, local edit/delete/reorder behavior, projection requests with request-body items, export output, and stale/error states using fake data only.
 - Docs scope: describe this as a privacy/cost option for deployed/static hosting that avoids server-side storage of financial data; do not present Lambda in-memory storage as reliable session storage.
 
-### Step 23: AWS serverless persistent backend
+### Step 23: AWS serverless ephemeral backend
 
-- [ ] **Status:** Pending
-- **Branch:** `step-23-aws-serverless-backend`
-- **Pull Request:** TBD
-- Add the cost-effective persistent AWS backend path using AWS SAM, API Gateway HTTP API, Lambda, and DynamoDB.
-- Architecture recommendation: browser calls API Gateway HTTP API, API Gateway invokes the Go Lambda handler, and the handler persists financial items in DynamoDB behind the existing repository interface.
-- Backend scope: add a DynamoDB repository adapter using DynamoDB-shaped access patterns, keep financial item and projection logic independent from storage, and preserve local `memory`/`json` drivers for development.
-- Infrastructure scope: add a SAM template with the Lambda function, HTTP API routes, DynamoDB table, least-privilege IAM policy, and public-safe parameters/outputs only.
-- Cost recommendation: prefer Lambda + HTTP API + DynamoDB on-demand for low/variable personal traffic; avoid EC2, ECS/Fargate, App Runner, and RDS until the app has steady traffic or relational/query requirements that justify their baseline cost.
+- [x] **Status:** Completed
+- **Branch:** `step-23-aws-serverless-ephemeral-backend`
+- **Pull Request:** [#18](https://github.com/zachfire9/financials-api/pull/18)
+- Add the cost-effective ephemeral AWS backend path using AWS SAM, API Gateway HTTP API, and a Go Lambda function.
+- Architecture recommendation: browser calls API Gateway HTTP API, API Gateway invokes the Go Lambda handler, and the UI sends request-supplied projection items for browser-owned sessions instead of relying on Lambda/process memory as session storage.
+- Backend scope: add a Lambda entrypoint and HTTP API v2 adapter that reuse the existing `net/http` handler and repository interface; keep local `memory`/`json` drivers unchanged for development.
+- Infrastructure scope: add a SAM template with the Lambda function, HTTP API routes, public-safe parameters, and outputs only; do not add DynamoDB until persistent deployed storage is intentionally chosen later.
+- Cost recommendation: prefer Lambda + HTTP API with no database for the first AWS ephemeral path; avoid EC2, ECS/Fargate, App Runner, RDS, and DynamoDB until the app needs server-side persistence or access patterns that justify the additional service.
 - Security scope: do not deploy real financial data to a public unauthenticated API; include placeholder-only configuration for allowed origins and authentication settings, with real values kept outside git.
-- Test/verification scope: run Go tests, SAM build/validate where available, and a fake-data deployed smoke test before treating the stack as ready.
+- Test/verification scope: run Go tests, compile the Lambda bootstrap, validate/build with SAM where available, and use fake data only for deployed smoke tests.
 
 ### Step 24: Static frontend AWS deploy workflow
 
@@ -385,7 +385,7 @@ Track each step as a living checklist. Each implementation PR should update this
 ## Open decisions
 
 - Go HTTP stack/router choice: standard library only vs `chi` as the first router dependency.
-- Local storage adapter choice: simple JSON/file storage is implemented for lowest-friction local development; DynamoDB remains the recommended AWS adapter when persistent deployed storage is added.
+- Local storage adapter choice: simple JSON/file storage is implemented for lowest-friction local development; the first AWS path is ephemeral/no-database, and DynamoDB remains the likely adapter if persistent deployed storage is added later.
 - Initial financial item fields are set: name, amount, currency, annual return rate basis points, annual contribution, sort order, ID, timestamps, optional drawdown return rate, and optional contribution-inflation flag.
 - Whether financial item deletion is needed immediately or whether archive/inactive status is safer.
 - Deployed authentication/access control is required before using real financial data in AWS; choose a minimal personal-use protection first, with Cognito or equivalent identity available later if the app becomes multi-user.
