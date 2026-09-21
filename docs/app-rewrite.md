@@ -365,17 +365,30 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed in UI repo; API plan tracking update pending merge
 - **Branch:** `step-24-static-frontend-aws-deploy` / API tracking branch `step-24-static-frontend-aws-deploy-tracking`
-- **Pull Request:** [financials-ui #11](https://github.com/zachfire9/financials-ui/pull/11)
+- **Pull Request:** [financials-ui #11](https://github.com/zachfire9/financials-ui/pull/11) / API tracking [#19](https://github.com/zachfire9/financials-api/pull/19)
 - Add a low-cost static hosting workflow for the Vite UI using S3 plus CloudFront, with the API base URL supplied through environment-specific build/deploy configuration.
 - UI scope: make the production build consume a placeholder API base URL for the deployed API, keep local dev proxy behavior unchanged, document how ephemeral mode vs persistent mode changes frontend behavior, and keep a placeholder-only `.env.production.example` while ignoring real `.env.production` values.
 - Infrastructure/deploy scope: add a UI-side PowerShell deploy script that syncs `dist/` to a provided S3 bucket and optionally creates a CloudFront invalidation; keep real bucket names, distribution IDs, custom domains, API URLs, and credentials out of committed docs unless they are intentionally public-safe placeholders.
 - Verification scope: run `npm test`, `npm run build`, `npm audit --omit=dev --audit-level=moderate`, and a static preview smoke test against fake data / placeholder deployment config.
 - Cost recommendation: keep S3/CloudFront as the initial static hosting path because the baseline cost is near zero for small personal traffic and it fits explicit AWS infrastructure planning; keep Amplify Hosting documented as a later migration option if its familiar workflow and GitHub-connected deploys become worth the extra service abstraction.
 
-### Step 25: Deployed access control before real data
+### Step 25: SAM-managed frontend hosting infrastructure
 
 - [ ] **Status:** Pending
-- **Branch:** `step-25-deployed-access-control`
+- **Branch:** `step-25-frontend-sam-hosting-infra`
+- **Pull Request:** TBD
+- Add deployable AWS SAM/CloudFormation infrastructure for the static UI so the S3 bucket, CloudFront distribution, origin access control, bucket policy, SPA fallback behavior, and stack outputs are versioned instead of created manually.
+- Infrastructure scope: add a UI repo `template.yaml` using plain CloudFormation resources under SAM, including a private S3 bucket for `dist/`, CloudFront Origin Access Control, a CloudFront distribution, a bucket policy that allows only CloudFront reads, and outputs for the bucket name, distribution ID, and CloudFront URL.
+- Configuration scope: add placeholder-safe deploy docs and either a `samconfig.example.toml` or documented `sam deploy --guided --profile zachfire9` workflow; keep real stack names, bucket names, domains, API URLs, distribution IDs, and credentials out of committed files unless intentionally public-safe.
+- Deploy scope: keep SAM responsible for infrastructure only, and keep the existing UI PowerShell script responsible for `npm run build` asset sync and optional CloudFront invalidation using the SAM stack outputs.
+- Optional domain scope: leave ACM certificate and Route 53 alias parameters optional/later unless a custom domain is chosen; the default first deploy can use the generated CloudFront domain.
+- Verification scope: validate the SAM template where tooling is available, run `npm test`, run `npm run build`, smoke-test the static output locally, and confirm the stack outputs provide everything needed by `scripts/deploy-static.ps1`.
+- Cost recommendation: continue with private S3 + CloudFront as the lowest-complexity, low-cost production-ish path; avoid Amplify Hosting until GitHub-connected branch deploys become worth the extra abstraction.
+
+### Step 26: Deployed access control before real data
+
+- [ ] **Status:** Pending
+- **Branch:** `step-26-deployed-access-control`
 - **Pull Request:** TBD
 - Add an explicit deployed access-control step before storing or processing real financial data through the AWS-hosted app.
 - Recommendation: start with API Gateway API key + usage plan as the smallest acceptable first protection for personal fake-data testing, then move to Cognito, OIDC, or another stronger identity flow if the app becomes multi-user or internet-facing beyond personal testing.
