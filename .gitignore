@@ -1,6 +1,7 @@
 # Build outputs
 /bin/
 /dist/
+/.aws-sam/
 
 # Local runtime/config files
 .env
