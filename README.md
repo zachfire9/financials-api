@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton, generic financial it
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: ephemeral import/export session mode
+- Current branch focus: AWS serverless ephemeral backend
 - Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, `GET`/`POST /financial-items/backup`, and accumulation/drawdown `POST /projections`
 - Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, per-item contribution inflation flags, JSON backup replacement imports, request-supplied projection item support for browser-owned sessions, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory, explicit ephemeral/non-durable memory, and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: AWS serverless deployment planning for Lambda + HTTP API + DynamoDB and S3/CloudFront static hosting with access control before real data
+- Next planned area: static frontend AWS hosting for the browser-owned ephemeral UI, followed by deployed access control before real data
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -81,6 +81,29 @@ $env:FINANCIALS_STORAGE_DRIVER="ephemeral"; go run ./cmd/api
 ```
 
 `ephemeral` uses the same process-local memory repository as `memory`; it is only a clear runtime signal that the intended workflow is browser-owned import/export plus request-supplied projection items. Do not treat Lambda/process memory as a reliable browser session store.
+
+## AWS serverless backend
+
+The initial AWS backend path is optimized for the browser-owned ephemeral workflow: API Gateway HTTP API invokes a Go Lambda function, and the React app sends request-supplied projection items instead of relying on server-side session storage.
+
+Committed AWS files are public-safe placeholders only:
+
+- `template.yaml`: SAM template for HTTP API + Lambda using `FINANCIALS_STORAGE_DRIVER=ephemeral` by default.
+- `Makefile`: SAM makefile target that builds the Lambda custom-runtime `bootstrap` for `provided.al2023`.
+
+Build the Lambda artifact locally:
+
+```powershell
+$env:ARTIFACTS_DIR=".aws-sam/build/FinancialsApiFunction"; New-Item -ItemType Directory -Force $env:ARTIFACTS_DIR | Out-Null; make build-FinancialsApiFunction
+```
+
+Deploy with private/environment-specific values supplied at deploy time, not committed to git:
+
+```powershell
+sam build; sam deploy --guided --profile zachfire9
+```
+
+Use placeholder/default settings for fake-data smoke tests only. Do not put real financial data through a public unauthenticated API. Persistent DynamoDB storage is intentionally deferred until after the ephemeral AWS path and access-control requirements are reviewed.
 
 ## CORS and deploy-readiness
 
