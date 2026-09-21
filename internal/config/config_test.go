@@ -94,6 +94,24 @@ func TestLoadLetsProcessEnvOverrideEnvFile(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsEphemeralStorageDriverWithoutAStoragePath(t *testing.T) {
+	t.Setenv("FINANCIALS_API_ADDR", "")
+	t.Setenv("FINANCIALS_STORAGE_DRIVER", "ephemeral")
+	t.Setenv("FINANCIALS_STORAGE_PATH", "./ignored-for-ephemeral.json")
+	t.Setenv("FINANCIALS_ALLOWED_ORIGINS", "")
+
+	cfg, err := Load(filepath.Join(t.TempDir(), ".env"))
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.StorageDriver != StorageDriverEphemeral {
+		t.Fatalf("expected ephemeral storage driver, got %q", cfg.StorageDriver)
+	}
+	if cfg.StoragePath != "" {
+		t.Fatalf("expected empty storage path for ephemeral driver, got %q", cfg.StoragePath)
+	}
+}
+
 func TestLoadRequiresStoragePathForJSONDriver(t *testing.T) {
 	t.Setenv("FINANCIALS_API_ADDR", "")
 	t.Setenv("FINANCIALS_STORAGE_DRIVER", "json")

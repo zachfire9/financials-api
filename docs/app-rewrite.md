@@ -338,12 +338,12 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 22: Ephemeral import/export session mode
 
-- [ ] **Status:** Pending
+- [x] **Status:** Completed
 - **Branch:** `step-22-ephemeral-session-mode` / `step-22-ephemeral-session-ui`
 - **Pull Request:** TBD
 - Add a browser-owned, non-persistent mode for privacy-first AWS usage where users import a local JSON backup, work with the data in React state, and export JSON again before closing the browser if they want to keep changes.
-- Backend scope: add a configuration flag such as `FINANCIALS_STORAGE_DRIVER=ephemeral` or `FINANCIALS_DISABLE_PERSISTENCE=true` only if needed to make repository-backed CRUD unavailable/clearly non-durable; keep Lambda/process memory out of the deployed persistence story because Lambda containers are reused, discarded, and scaled independently of browser sessions.
-- UI scope: when ephemeral mode is enabled, load items from JSON import into browser state, perform create/edit/delete/reorder locally, send the current in-memory items as caller-supplied `items` in `POST /projections`, and provide a clear export/download path for saving changes.
+- Backend scope: add explicit `FINANCIALS_STORAGE_DRIVER=ephemeral` support as a non-durable runtime signal for stateless/request-supplied projection workflows; keep Lambda/process memory out of the deployed persistence story because Lambda containers are reused, discarded, and scaled independently of browser sessions.
+- UI scope: when `VITE_FINANCIALS_SESSION_MODE=ephemeral` is enabled, load items from JSON import into browser state, perform create/edit/delete/reorder locally, send the current in-memory items as caller-supplied `items` in `POST /projections`, and provide a clear export/download path for saving changes.
 - UX scope: show explicit copy that refresh/close loses unsaved session data in ephemeral mode; hide or disable API-backed save/load controls so the user does not confuse browser memory with durable storage.
 - Test scope: cover import, local edit/delete/reorder behavior, projection requests with request-body items, export output, and stale/error states using fake data only.
 - Docs scope: describe this as a privacy/cost option for deployed/static hosting that avoids server-side storage of financial data; do not present Lambda in-memory storage as reliable session storage.

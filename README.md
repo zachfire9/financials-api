@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton, generic financial it
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: optional annual contribution inflation
+- Current branch focus: ephemeral import/export session mode
 - Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, `GET`/`POST /financial-items/backup`, and accumulation/drawdown `POST /projections`
-- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, per-item contribution inflation flags, JSON backup replacement imports, and projection/drawdown UI integration tracking
-- Implemented local storage options: process-local memory and gitignored JSON file storage
+- Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, per-item contribution inflation flags, JSON backup replacement imports, request-supplied projection item support for browser-owned sessions, and projection/drawdown UI integration tracking
+- Implemented local storage options: process-local memory, explicit ephemeral/non-durable memory, and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned areas: ephemeral browser-owned import/export session mode, then AWS serverless deployment planning for Lambda + HTTP API + DynamoDB and S3/CloudFront static hosting with access control before real data
+- Next planned area: AWS serverless deployment planning for Lambda + HTTP API + DynamoDB and S3/CloudFront static hosting with access control before real data
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -44,7 +44,7 @@ Configuration precedence:
 Supported config values:
 
 - `FINANCIALS_API_ADDR`: Go `http.Server` bind address, default `:8080`
-- `FINANCIALS_STORAGE_DRIVER`: `memory` or `json`, default `memory`
+- `FINANCIALS_STORAGE_DRIVER`: `memory`, `ephemeral`, or `json`, default `memory`
 - `FINANCIALS_STORAGE_PATH`: required when `FINANCIALS_STORAGE_DRIVER=json`, for example `./data/financial-items.json`
 - `FINANCIALS_ALLOWED_ORIGINS`: optional comma-separated browser origins allowed to call the API directly, blank by default for the local Vite proxy workflow
 
@@ -73,6 +73,14 @@ $env:FINANCIALS_STORAGE_DRIVER="json"; $env:FINANCIALS_STORAGE_PATH="./data/fina
 ```
 
 Do not commit the generated `/data/financial-items.json` file.
+
+For a deployed/static UI that keeps financial items in the browser instead of saving them through API CRUD, run the API in explicit non-durable mode and send projection inputs in the `POST /projections` request body:
+
+```powershell
+$env:FINANCIALS_STORAGE_DRIVER="ephemeral"; go run ./cmd/api
+```
+
+`ephemeral` uses the same process-local memory repository as `memory`; it is only a clear runtime signal that the intended workflow is browser-owned import/export plus request-supplied projection items. Do not treat Lambda/process memory as a reliable browser session store.
 
 ## CORS and deploy-readiness
 

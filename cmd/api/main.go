@@ -36,7 +36,7 @@ func main() {
 
 func newFinancialItemsRepository(cfg config.Config) (financialitems.Repository, error) {
 	switch cfg.StorageDriver {
-	case config.StorageDriverMemory:
+	case config.StorageDriverMemory, config.StorageDriverEphemeral:
 		return financialitems.NewInMemoryRepository(), nil
 	case config.StorageDriverJSON:
 		return financialitems.NewJSONFileRepository(cfg.StoragePath)
