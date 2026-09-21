@@ -124,6 +124,7 @@ func TestFinancialItemsEndpointCreatesAndListsItems(t *testing.T) {
 		"annualReturnRateBasisPoints":700,
 		"drawdownAnnualReturnRateBasisPoints":350,
 		"annualContributionCents":300000,
+		"inflateAnnualContribution":true,
 		"sortOrder":2
 	}`)
 
@@ -138,6 +139,9 @@ func TestFinancialItemsEndpointCreatesAndListsItems(t *testing.T) {
 	}
 	if created.DrawdownAnnualReturnRateBasisPoints == nil || *created.DrawdownAnnualReturnRateBasisPoints != 350 {
 		t.Fatalf("unexpected drawdown return rate: %+v", created.DrawdownAnnualReturnRateBasisPoints)
+	}
+	if !created.InflateAnnualContribution {
+		t.Fatalf("expected created item contribution inflation flag, got %+v", created)
 	}
 	if created.CreatedAt.IsZero() || created.UpdatedAt.IsZero() {
 		t.Fatalf("expected timestamps on created item: %+v", created)
@@ -158,6 +162,9 @@ func TestFinancialItemsEndpointCreatesAndListsItems(t *testing.T) {
 	}
 	if listed[0].ID != created.ID {
 		t.Fatalf("expected listed item %q, got %+v", created.ID, listed[0])
+	}
+	if !listed[0].InflateAnnualContribution {
+		t.Fatalf("expected listed item contribution inflation flag, got %+v", listed[0])
 	}
 }
 
@@ -194,6 +201,7 @@ func TestFinancialItemsEndpointReadsUpdatesAndDeletesItems(t *testing.T) {
 		"annualReturnRateBasisPoints":300,
 		"drawdownAnnualReturnRateBasisPoints":100,
 		"annualContributionCents":75000,
+		"inflateAnnualContribution":true,
 		"sortOrder":3
 	}`))
 	handler.ServeHTTP(putRecorder, putRequest)
@@ -208,6 +216,9 @@ func TestFinancialItemsEndpointReadsUpdatesAndDeletesItems(t *testing.T) {
 	}
 	if updated.DrawdownAnnualReturnRateBasisPoints == nil || *updated.DrawdownAnnualReturnRateBasisPoints != 100 {
 		t.Fatalf("unexpected updated drawdown return rate: %+v", updated.DrawdownAnnualReturnRateBasisPoints)
+	}
+	if !updated.InflateAnnualContribution {
+		t.Fatalf("expected updated item contribution inflation flag, got %+v", updated)
 	}
 	if !updated.UpdatedAt.After(created.UpdatedAt) {
 		t.Fatalf("expected updated timestamp after create timestamp, got created=%s updated=%s", created.UpdatedAt, updated.UpdatedAt)
@@ -398,6 +409,38 @@ func TestProjectionEndpointCalculatesDrawdownHypotheticalItemsWithoutSaving(t *t
 	}
 }
 
+func TestProjectionEndpointAcceptsInflatedAnnualContributionRequests(t *testing.T) {
+	handler := NewHandlerWithRepository(financialitems.NewInMemoryRepository())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/projections", strings.NewReader(`{
+		"savingYears":2,
+		"drawdownYears":0,
+		"annualWithdrawalInflationRateBasisPoints":300,
+		"items":[
+			{
+				"name":"Example brokerage",
+				"amountCents":1000000,
+				"currency":"USD",
+				"annualReturnRateBasisPoints":0,
+				"annualContributionCents":100000,
+				"inflateAnnualContribution":true,
+				"sortOrder":1
+			}
+		]
+	}`))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	var projection projections.Projection
+	decodeJSON(t, recorder, &projection)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, projections.PhaseSaving, 1100000, 100000, 0, 0, 0)
+	assertProjectionPhaseBalance(t, projection.Items[0].YearlyBalances[2], 2, projections.PhaseSaving, 1203000, 103000, 0, 0, 0)
+}
+
 func TestProjectionEndpointUsesRepositoryItemsForDrawdownWhenItemsOmittedOrEmpty(t *testing.T) {
 	repository := financialitems.NewInMemoryRepository()
 	handler := NewHandlerWithRepository(repository)
@@ -442,6 +485,7 @@ func TestFinancialItemsBackupEndpointExportsAndImportsReplacementBackup(t *testi
 		"annualReturnRateBasisPoints":700,
 		"drawdownAnnualReturnRateBasisPoints":350,
 		"annualContributionCents":300000,
+		"inflateAnnualContribution":true,
 		"sortOrder":2
 	}`)
 
@@ -462,6 +506,9 @@ func TestFinancialItemsBackupEndpointExportsAndImportsReplacementBackup(t *testi
 	}
 	if backup.Items[0].DrawdownAnnualReturnRateBasisPoints == nil || *backup.Items[0].DrawdownAnnualReturnRateBasisPoints != 350 {
 		t.Fatalf("expected exported drawdown return rate, got %+v", backup.Items[0].DrawdownAnnualReturnRateBasisPoints)
+	}
+	if !backup.Items[0].InflateAnnualContribution {
+		t.Fatalf("expected exported contribution inflation flag, got %+v", backup.Items[0])
 	}
 
 	backup.Items[0].Name = "Restored brokerage"
@@ -500,6 +547,9 @@ func TestFinancialItemsBackupEndpointExportsAndImportsReplacementBackup(t *testi
 	}
 	if imported[1].DrawdownAnnualReturnRateBasisPoints == nil || *imported[1].DrawdownAnnualReturnRateBasisPoints != 125 {
 		t.Fatalf("expected imported drawdown return rate, got %+v", imported[1].DrawdownAnnualReturnRateBasisPoints)
+	}
+	if !imported[0].InflateAnnualContribution {
+		t.Fatalf("expected imported contribution inflation flag, got %+v", imported[0])
 	}
 }
 

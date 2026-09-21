@@ -42,6 +42,7 @@ type ItemInput struct {
 	AnnualReturnRateBasisPoints         int    `json:"annualReturnRateBasisPoints"`
 	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
+	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
 	SortOrder                           int    `json:"sortOrder"`
 }
 
@@ -63,6 +64,7 @@ type ProjectedItem struct {
 	AnnualReturnRateBasisPoints         int             `json:"annualReturnRateBasisPoints"`
 	DrawdownAnnualReturnRateBasisPoints *int            `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64           `json:"annualContributionCents"`
+	InflateAnnualContribution           bool            `json:"inflateAnnualContribution"`
 	YearlyBalances                      []YearlyBalance `json:"yearlyBalances"`
 }
 
@@ -155,18 +157,26 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 		})
 	}
 
+	annualContributions := make([]int64, len(items))
+	for index, item := range items {
+		annualContributions[index] = item.AnnualContributionCents
+	}
 	for year := 1; year <= request.SavingYears; year++ {
 		for index, item := range items {
+			contributionCents := annualContributions[index]
 			growthCents := roundBasisPointGrowth(balances[index], item.AnnualReturnRateBasisPoints)
-			currentBalance := balances[index] + growthCents + item.AnnualContributionCents
+			currentBalance := balances[index] + growthCents + contributionCents
 			itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
 				Year:              year,
 				Phase:             PhaseSaving,
 				BalanceCents:      currentBalance,
-				ContributionCents: item.AnnualContributionCents,
+				ContributionCents: contributionCents,
 				GrowthCents:       growthCents,
 			})
 			balances[index] = currentBalance
+			if item.InflateAnnualContribution {
+				annualContributions[index] += roundBasisPointGrowth(contributionCents, request.AnnualWithdrawalInflationRateBasisPoints)
+			}
 		}
 	}
 
@@ -299,6 +309,7 @@ func newProjectedItem(input ItemInput, yearlyBalances []YearlyBalance) Projected
 		AnnualReturnRateBasisPoints:         input.AnnualReturnRateBasisPoints,
 		DrawdownAnnualReturnRateBasisPoints: input.DrawdownAnnualReturnRateBasisPoints,
 		AnnualContributionCents:             input.AnnualContributionCents,
+		InflateAnnualContribution:           input.InflateAnnualContribution,
 		YearlyBalances:                      yearlyBalances,
 	}
 }

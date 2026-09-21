@@ -317,7 +317,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 20: JSON backup export/import
 
-- [ ] **Status:** In progress — backend/API and UI support on current Step 20 branches.
+- [x] **Status:** Completed
 - **Branch:** `step-20-json-backup-export-import` / `step-20-json-backup-ui`
 - **Pull Request:** [financials-api #15](https://github.com/zachfire9/financials-api/pull/15), [financials-ui #8](https://github.com/zachfire9/financials-ui/pull/8)
 - Add a public-safe JSON backup workflow so all saved financial data can be exported, saved locally, and re-imported after memory/file storage is cleared.
@@ -327,23 +327,69 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 21: Optional annual contribution inflation
 
-- [ ] **Status:** Pending
-- **Branch:** TBD
-- **Pull Request:** TBD
-- Add an option for annual contributions to grow by the projection's configured withdrawal inflation rate.
-- Backend scope: extend projection request handling with a boolean such as `inflateAnnualContributions`; when enabled, apply `annualWithdrawalInflationRateBasisPoints` to each item's annual contribution after each projection year during saving years, while preserving the current fixed-contribution behavior when omitted or false.
-- UI scope: add a checkbox associated with the annual-contribution/projection controls so users can opt into increasing contributions by the withdrawal inflation percentage specified in projection settings.
+- [x] **Status:** Completed
+- **Branch:** `step-21-annual-contribution-inflation` / `step-21-annual-contribution-inflation-ui`
+- **Pull Request:** [financials-api #16](https://github.com/zachfire9/financials-api/pull/16), [financials-ui #9](https://github.com/zachfire9/financials-ui/pull/9)
+- Add an item-level option for annual contributions to grow by the projection's configured withdrawal inflation rate.
+- Backend scope: extend financial item and projection item handling with `inflateAnnualContribution`; when enabled on an item, apply `annualWithdrawalInflationRateBasisPoints` to that item's annual contribution after each projection year during saving years, while preserving fixed-contribution behavior for omitted or false items.
+- UI scope: add the checkbox to the financial item create/edit form and item summaries, not the projection controls, so users can choose which accounts (for example 401k vs IRA) match inflation.
 - Test scope: add RED/GREEN projection-engine and endpoint tests covering fixed contributions by default, inflated contributions when enabled, rounding behavior, and interaction with `savingYears`/drawdown boundaries.
 - Docs scope: update fake projection examples and explain that this is a projection setting, not a persisted change to the saved financial item amount.
+
+### Step 22: Ephemeral import/export session mode
+
+- [ ] **Status:** Pending
+- **Branch:** `step-22-ephemeral-session-mode` / `step-22-ephemeral-session-ui`
+- **Pull Request:** TBD
+- Add a browser-owned, non-persistent mode for privacy-first AWS usage where users import a local JSON backup, work with the data in React state, and export JSON again before closing the browser if they want to keep changes.
+- Backend scope: add a configuration flag such as `FINANCIALS_STORAGE_DRIVER=ephemeral` or `FINANCIALS_DISABLE_PERSISTENCE=true` only if needed to make repository-backed CRUD unavailable/clearly non-durable; keep Lambda/process memory out of the deployed persistence story because Lambda containers are reused, discarded, and scaled independently of browser sessions.
+- UI scope: when ephemeral mode is enabled, load items from JSON import into browser state, perform create/edit/delete/reorder locally, send the current in-memory items as caller-supplied `items` in `POST /projections`, and provide a clear export/download path for saving changes.
+- UX scope: show explicit copy that refresh/close loses unsaved session data in ephemeral mode; hide or disable API-backed save/load controls so the user does not confuse browser memory with durable storage.
+- Test scope: cover import, local edit/delete/reorder behavior, projection requests with request-body items, export output, and stale/error states using fake data only.
+- Docs scope: describe this as a privacy/cost option for deployed/static hosting that avoids server-side storage of financial data; do not present Lambda in-memory storage as reliable session storage.
+
+### Step 23: AWS serverless persistent backend
+
+- [ ] **Status:** Pending
+- **Branch:** `step-23-aws-serverless-backend`
+- **Pull Request:** TBD
+- Add the cost-effective persistent AWS backend path using AWS SAM, API Gateway HTTP API, Lambda, and DynamoDB.
+- Architecture recommendation: browser calls API Gateway HTTP API, API Gateway invokes the Go Lambda handler, and the handler persists financial items in DynamoDB behind the existing repository interface.
+- Backend scope: add a DynamoDB repository adapter using DynamoDB-shaped access patterns, keep financial item and projection logic independent from storage, and preserve local `memory`/`json` drivers for development.
+- Infrastructure scope: add a SAM template with the Lambda function, HTTP API routes, DynamoDB table, least-privilege IAM policy, and public-safe parameters/outputs only.
+- Cost recommendation: prefer Lambda + HTTP API + DynamoDB on-demand for low/variable personal traffic; avoid EC2, ECS/Fargate, App Runner, and RDS until the app has steady traffic or relational/query requirements that justify their baseline cost.
+- Security scope: do not deploy real financial data to a public unauthenticated API; include placeholder-only configuration for allowed origins and authentication settings, with real values kept outside git.
+- Test/verification scope: run Go tests, SAM build/validate where available, and a fake-data deployed smoke test before treating the stack as ready.
+
+### Step 24: Static frontend AWS deploy workflow
+
+- [ ] **Status:** Pending
+- **Branch:** `step-24-static-frontend-aws-deploy`
+- **Pull Request:** TBD
+- Add a low-cost static hosting workflow for the Vite UI using S3 plus CloudFront, with the API base URL supplied through environment-specific build/deploy configuration.
+- UI scope: make the production build consume a placeholder API base URL for the deployed API, keep local dev proxy behavior unchanged, and document how ephemeral mode vs persistent mode changes frontend behavior.
+- Infrastructure/deploy scope: either have the API SAM stack output the frontend bucket/distribution/API URL or add a small UI-side deploy script that syncs `dist/` to the provided bucket; keep real bucket names, distribution IDs, custom domains, and credentials out of committed docs unless they are intentionally public-safe placeholders.
+- Verification scope: run `npm test`, `npm run build`, static asset deployment verification, and a browser smoke test against fake data through the deployed API path.
+- Cost recommendation: keep S3/CloudFront as the initial static hosting path because the baseline cost is near zero for small personal traffic and it fits explicit AWS infrastructure planning; keep Amplify Hosting documented as a later migration option if its familiar workflow and GitHub-connected deploys become worth the extra service abstraction.
+
+### Step 25: Deployed access control before real data
+
+- [ ] **Status:** Pending
+- **Branch:** `step-25-deployed-access-control`
+- **Pull Request:** TBD
+- Add an explicit deployed access-control step before storing or processing real financial data through the AWS-hosted app.
+- Recommendation: start with the smallest acceptable protection for personal use, then move to Cognito or another stronger identity flow if the app becomes multi-user or internet-facing beyond personal testing.
+- Backend/static hosting scope: decide whether the first protected mode is API-key/app-password style, Cognito, or CloudFront/API Gateway authorization; document the tradeoffs and keep secrets out of git.
+- Verification scope: prove unauthenticated requests fail, authenticated fake-data requests pass, and both persistent DynamoDB mode and ephemeral browser-owned mode remain clear to users.
 
 ## Open decisions
 
 - Go HTTP stack/router choice: standard library only vs `chi` as the first router dependency.
-- Local storage adapter choice: DynamoDB Local for AWS parity vs simple JSON/file adapter for lowest-friction local development.
-- Initial financial item fields are set: name, amount, currency, annual return rate basis points, annual contribution, sort order, ID, and timestamps.
+- Local storage adapter choice: simple JSON/file storage is implemented for lowest-friction local development; DynamoDB remains the recommended AWS adapter when persistent deployed storage is added.
+- Initial financial item fields are set: name, amount, currency, annual return rate basis points, annual contribution, sort order, ID, timestamps, optional drawdown return rate, and optional contribution-inflation flag.
 - Whether financial item deletion is needed immediately or whether archive/inactive status is safer.
-- Whether authentication is needed for local-only use, and if so which lightweight mechanism fits best.
-- UI stack recommendation: Vite + React + TypeScript, with static build output suitable for AWS Amplify later.
+- Deployed authentication/access control is required before using real financial data in AWS; choose a minimal personal-use protection first, with Cognito or equivalent identity available later if the app becomes multi-user.
+- UI stack recommendation: Vite + React + TypeScript, with static build output suitable for S3/CloudFront or AWS Amplify later.
 - Local UI/API smoke testing should use placeholder bind-address docs and keep real LAN details out of git.
 - Projection v1 request/response shape is implemented for accumulation-only projections.
 - Drawdown v2 questions are proposed in `docs/drawdown-projection-planning.md`, including per-item drawdown return rates, withdrawal inflation, withdrawal timing, allocation order, depletion behavior, contribution behavior during drawdown, and default drawdown horizon.

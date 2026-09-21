@@ -20,6 +20,7 @@ type FinancialItem struct {
 	AnnualReturnRateBasisPoints         int       `json:"annualReturnRateBasisPoints"`
 	DrawdownAnnualReturnRateBasisPoints *int      `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64     `json:"annualContributionCents"`
+	InflateAnnualContribution           bool      `json:"inflateAnnualContribution"`
 	SortOrder                           int       `json:"sortOrder"`
 	CreatedAt                           time.Time `json:"createdAt"`
 	UpdatedAt                           time.Time `json:"updatedAt"`
@@ -33,6 +34,7 @@ type CreateFinancialItemRequest struct {
 	AnnualReturnRateBasisPoints         int    `json:"annualReturnRateBasisPoints"`
 	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
+	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
 	SortOrder                           int    `json:"sortOrder"`
 }
 
@@ -44,6 +46,7 @@ type UpdateFinancialItemRequest struct {
 	AnnualReturnRateBasisPoints         int    `json:"annualReturnRateBasisPoints"`
 	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
+	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
 	SortOrder                           int    `json:"sortOrder"`
 }
 
