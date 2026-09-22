@@ -387,9 +387,9 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 26: Deployed access control before real data
 
-- [x] **Status:** Completed in API/UI repos; PR links pending
+- [x] **Status:** Completed in API/UI repos
 - **Branch:** `step-26-deployed-access-control` / UI branch `step-26-deployed-access-control-ui`
-- **Pull Request:** TBD
+- **Pull Request:** [financials-api #21](https://github.com/zachfire9/financials-api/pull/21) / [financials-ui #13](https://github.com/zachfire9/financials-ui/pull/13)
 - Add an explicit deployed access-control step before storing or processing real financial data through the AWS-hosted app.
 - Recommendation implemented: keep the lower-cost API Gateway HTTP API path and add a pragmatic shared-token gate for personal deployed testing. This is not true user identity auth; move to Cognito, OIDC, or a Lambda authorizer if the app becomes multi-user or internet-facing beyond personal testing.
 - Backend/static hosting scope: add optional `FINANCIALS_ACCESS_TOKEN` / `FinancialsAccessToken` configuration. When configured, all non-health API requests must include `X-Financials-Access-Token`; health and CORS preflight stay unauthenticated. Frontend/runtime token values must be supplied through ignored local deploy config and kept out of public docs.
