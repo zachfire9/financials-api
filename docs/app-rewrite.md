@@ -387,12 +387,12 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 26: Deployed access control before real data
 
-- [ ] **Status:** Pending
-- **Branch:** `step-26-deployed-access-control`
+- [x] **Status:** Completed in API/UI repos; PR links pending
+- **Branch:** `step-26-deployed-access-control` / UI branch `step-26-deployed-access-control-ui`
 - **Pull Request:** TBD
 - Add an explicit deployed access-control step before storing or processing real financial data through the AWS-hosted app.
-- Recommendation: start with API Gateway API key + usage plan as the smallest acceptable first protection for personal fake-data testing, then move to Cognito, OIDC, or another stronger identity flow if the app becomes multi-user or internet-facing beyond personal testing.
-- Backend/static hosting scope: add API Gateway API key enforcement and a usage plan for the Lambda HTTP API path, document that this is a pragmatic gate rather than true user identity auth, pass any frontend/runtime secret values outside git, and keep all real keys out of public docs.
+- Recommendation implemented: keep the lower-cost API Gateway HTTP API path and add a pragmatic shared-token gate for personal deployed testing. This is not true user identity auth; move to Cognito, OIDC, or a Lambda authorizer if the app becomes multi-user or internet-facing beyond personal testing.
+- Backend/static hosting scope: add optional `FINANCIALS_ACCESS_TOKEN` / `FinancialsAccessToken` configuration. When configured, all non-health API requests must include `X-Financials-Access-Token`; health and CORS preflight stay unauthenticated. Frontend/runtime token values must be supplied through ignored local deploy config and kept out of public docs.
 - Verification scope: prove unauthenticated requests fail, authenticated fake-data requests pass, the static frontend can be configured with protected API access outside git, and both persistent DynamoDB mode and ephemeral browser-owned mode remain clear to users.
 
 ## Open decisions
@@ -401,7 +401,7 @@ Track each step as a living checklist. Each implementation PR should update this
 - Local storage adapter choice: simple JSON/file storage is implemented for lowest-friction local development; the first AWS path is ephemeral/no-database, and DynamoDB remains the likely adapter if persistent deployed storage is added later.
 - Initial financial item fields are set: name, amount, currency, annual return rate basis points, annual contribution, sort order, ID, timestamps, optional drawdown return rate, and optional contribution-inflation flag.
 - Whether financial item deletion is needed immediately or whether archive/inactive status is safer.
-- Deployed authentication/access control is required before using real financial data in AWS; the first planned protection is API Gateway API key + usage plan as a pragmatic personal-use gate, with Cognito/OIDC/Lambda authorizer or equivalent identity available later if the app becomes multi-user.
+- Deployed authentication/access control is required before using real financial data in AWS; Step 26 adds a pragmatic personal-use shared-token gate for the current HTTP API path, with Cognito/OIDC/Lambda authorizer or equivalent identity available later if the app becomes multi-user.
 - UI stack recommendation: Vite + React + TypeScript, with static build output suitable for S3/CloudFront or AWS Amplify later.
 - Local UI/API smoke testing should use placeholder bind-address docs and keep real LAN details out of git.
 - Projection v1 request/response shape is implemented for accumulation-only projections.

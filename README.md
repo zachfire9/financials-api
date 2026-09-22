@@ -7,12 +7,12 @@ The first implementation phase focuses on the API skeleton, generic financial it
 ## Current status
 
 - Runtime: Go HTTP API
-- Current branch focus: AWS serverless ephemeral backend
+- Current branch focus: deployed access control before real data
 - Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, `GET`/`POST /financial-items/backup`, and accumulation/drawdown `POST /projections`
 - Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, per-item contribution inflation flags, JSON backup replacement imports, request-supplied projection item support for browser-owned sessions, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory, explicit ephemeral/non-durable memory, and gitignored JSON file storage
-- Implemented deploy-readiness option: placeholder-configured CORS allowed origins for future static hosting
-- Next planned area: deployed access control using API Gateway API key + usage plan as the first pragmatic gate before real data
+- Implemented deploy-readiness option: placeholder-configured CORS allowed origins and optional shared-token access control for static hosting
+- Next planned area: stronger Cognito/OIDC/Lambda-authorizer identity or cloud persistence only if needed
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
 
 ## Planning documents
@@ -105,11 +105,11 @@ sam build; sam deploy --guided --profile zachfire9
 
 Use placeholder/default settings for fake-data smoke tests only. Do not put real financial data through a public unauthenticated API. Persistent DynamoDB storage is intentionally deferred until after the ephemeral AWS path and access-control requirements are reviewed.
 
-## CORS and deploy-readiness
+## CORS and deployed access control
 
 The local Vite development workflow still uses the UI dev-server proxy, so CORS can stay disabled by leaving `FINANCIALS_ALLOWED_ORIGINS` blank.
 
-When a future static-hosted UI needs to call this API directly, set placeholder-style allowed origins in local/private runtime config:
+When a static-hosted UI needs to call this API directly, set placeholder-style allowed origins in local/private runtime config:
 
 ```powershell
 $env:FINANCIALS_ALLOWED_ORIGINS="https://<static-ui-host.example>"; go run ./cmd/api
@@ -121,7 +121,21 @@ Multiple origins can be comma-separated:
 FINANCIALS_ALLOWED_ORIGINS=https://<static-ui-host.example>,http://localhost:5173
 ```
 
-Keep real deployed origins, private LAN hostnames/IPs, and environment-specific deployment values in ignored `.env` files or private operator notes, not in committed docs.
+For deployed personal-use testing before real financial data, configure a shared access token outside git. When `FINANCIALS_ACCESS_TOKEN` is set, all non-health API requests must include the same value in `X-Financials-Access-Token`:
+
+```powershell
+$env:FINANCIALS_ACCESS_TOKEN="<private-access-token>"
+```
+
+For SAM deploys, pass the token as a private parameter override along with the allowed static UI origin:
+
+```powershell
+sam deploy --stack-name financials-api --profile zachfire9 --capabilities CAPABILITY_IAM --parameter-overrides FinancialsStorageDriver=ephemeral FinancialsAllowedOrigins=https://<cloudfront-domain> FinancialsAccessToken=<private-access-token>
+```
+
+This shared-token gate is a pragmatic personal-use blocker, not user identity or a replacement for Cognito/OIDC/Lambda-authorizer auth if the app becomes multi-user or stores real cloud data.
+
+Keep real deployed origins, access tokens, private LAN hostnames/IPs, and environment-specific deployment values in ignored `.env` files or private operator notes, not in committed docs.
 
 Check the health endpoint:
 

@@ -16,8 +16,13 @@ func NewHandler(cfg config.Config) (http.Handler, error) {
 		return nil, err
 	}
 
-	return httpapi.NewHandlerWithRepositoryAndCORS(repository, httpapi.CORSConfig{
-		AllowedOrigins: cfg.AllowedOrigins,
+	return httpapi.NewHandlerWithRepositoryAndConfig(repository, httpapi.HandlerConfig{
+		CORS: httpapi.CORSConfig{
+			AllowedOrigins: cfg.AllowedOrigins,
+		},
+		AccessControl: httpapi.AccessControlConfig{
+			Token: cfg.AccessToken,
+		},
 	}), nil
 }
 

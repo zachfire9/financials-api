@@ -14,6 +14,11 @@ Parameters:
     Type: String
     Default: ''
     Description: Comma-separated static UI origins allowed by the API CORS middleware. Keep real values in deploy parameters, not git.
+  FinancialsAccessToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Optional shared access token required in X-Financials-Access-Token for deployed personal-use API requests. Keep real values outside git.
 
 Globals:
   Function:
@@ -25,6 +30,7 @@ Globals:
       Variables:
         FINANCIALS_STORAGE_DRIVER: !Ref FinancialsStorageDriver
         FINANCIALS_ALLOWED_ORIGINS: !Ref FinancialsAllowedOrigins
+        FINANCIALS_ACCESS_TOKEN: !Ref FinancialsAccessToken
 
 Resources:
   FinancialsHttpApi:

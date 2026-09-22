@@ -112,6 +112,66 @@ func TestCORSMiddlewareHandlesPreflightForConfiguredOrigins(t *testing.T) {
 	if headers := recorder.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(headers, "Content-Type") {
 		t.Fatalf("expected CORS headers to include Content-Type, got %q", headers)
 	}
+	if headers := recorder.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(headers, accessTokenHeader) {
+		t.Fatalf("expected CORS headers to include %s, got %q", accessTokenHeader, headers)
+	}
+}
+
+func TestAccessControlRejectsProtectedRequestsWithoutConfiguredToken(t *testing.T) {
+	handler := NewHandlerWithRepositoryAndConfig(
+		financialitems.NewInMemoryRepository(),
+		HandlerConfig{AccessControl: AccessControlConfig{Token: "example-secret-token"}},
+	)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/financial-items", nil)
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, recorder.Code)
+	}
+}
+
+func TestAccessControlAllowsProtectedRequestsWithConfiguredToken(t *testing.T) {
+	handler := NewHandlerWithRepositoryAndConfig(
+		financialitems.NewInMemoryRepository(),
+		HandlerConfig{AccessControl: AccessControlConfig{Token: "example-secret-token"}},
+	)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/financial-items", nil)
+	request.Header.Set(accessTokenHeader, "example-secret-token")
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+}
+
+func TestAccessControlAllowsHealthAndPreflightWithoutToken(t *testing.T) {
+	handler := NewHandlerWithRepositoryAndConfig(
+		financialitems.NewInMemoryRepository(),
+		HandlerConfig{
+			CORS:          CORSConfig{AllowedOrigins: []string{"https://example-static-ui.example.com"}},
+			AccessControl: AccessControlConfig{Token: "example-secret-token"},
+		},
+	)
+
+	healthRecorder := httptest.NewRecorder()
+	healthRequest := httptest.NewRequest(http.MethodGet, "/health", nil)
+	handler.ServeHTTP(healthRecorder, healthRequest)
+	if healthRecorder.Code != http.StatusOK {
+		t.Fatalf("expected unauthenticated health status %d, got %d", http.StatusOK, healthRecorder.Code)
+	}
+
+	preflightRecorder := httptest.NewRecorder()
+	preflightRequest := httptest.NewRequest(http.MethodOptions, "/financial-items", nil)
+	preflightRequest.Header.Set("Origin", "https://example-static-ui.example.com")
+	preflightRequest.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	handler.ServeHTTP(preflightRecorder, preflightRequest)
+	if preflightRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected unauthenticated preflight status %d, got %d", http.StatusNoContent, preflightRecorder.Code)
+	}
 }
 
 func TestFinancialItemsEndpointCreatesAndListsItems(t *testing.T) {
