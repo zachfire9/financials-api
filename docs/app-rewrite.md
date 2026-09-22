@@ -376,7 +376,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed in UI repo; API plan tracking update pending merge
 - **Branch:** `step-25-frontend-sam-hosting-infra` / API tracking branch `step-25-frontend-sam-hosting-infra-tracking`
-- **Pull Request:** [financials-ui #12](https://github.com/zachfire9/financials-ui/pull/12) / API tracking TBD
+- **Pull Request:** [financials-ui #12](https://github.com/zachfire9/financials-ui/pull/12) / API tracking [#20](https://github.com/zachfire9/financials-api/pull/20)
 - Add deployable AWS SAM/CloudFormation infrastructure for the static UI so the S3 bucket, CloudFront distribution, origin access control, bucket policy, SPA fallback behavior, and stack outputs are versioned instead of created manually.
 - Infrastructure scope: add a UI repo `template.yaml` using plain CloudFormation resources under SAM, including a private S3 bucket for `dist/`, CloudFront Origin Access Control, a CloudFront distribution, a bucket policy that allows only CloudFront reads, and outputs for the bucket name, distribution ID, and CloudFront URL.
 - Configuration scope: add placeholder-safe deploy docs and either a `samconfig.example.toml` or documented `sam deploy --guided --profile zachfire9` workflow; keep real stack names, bucket names, domains, API URLs, distribution IDs, and credentials out of committed files unless intentionally public-safe.
