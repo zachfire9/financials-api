@@ -2,6 +2,7 @@
 /bin/
 /dist/
 /.aws-sam/
+samconfig.toml
 
 # Local runtime/config files
 .env
