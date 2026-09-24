@@ -399,7 +399,7 @@ Track each step as a living checklist. Each implementation PR should update this
 
 - [x] **Status:** Completed in UI repo; API plan tracking update pending merge
 - **Branch:** `step-27-ui-custom-domain-infra` / API tracking branch `step-27-ui-custom-domain-infra-tracking`
-- **Pull Request:** [financials-ui #14](https://github.com/zachfire9/financials-ui/pull/14) / API tracking TBD
+- **Pull Request:** [financials-ui #14](https://github.com/zachfire9/financials-ui/pull/14) / API tracking [#22](https://github.com/zachfire9/financials-api/pull/22)
 - Bring the manually configured `financials.zachfirestone.com` CloudFront alias, ACM certificate, and Route 53 alias into versioned infrastructure so future SAM deploys do not drift or remove the working custom domain.
 - UI infrastructure scope: add optional custom-domain parameters to the `financials-ui` SAM template, including `CustomDomainName`, `CertificateArn`, and optional hosted-zone inputs for Route 53 alias management. Keep the default no-domain path working for generated CloudFront domains.
 - Certificate/DNS scope: document that CloudFront certificates must live in `us-east-1`, support DNS validation outside git, and either manage the final Route 53 A/AAAA alias records from the template or document the manual alias fallback clearly.
