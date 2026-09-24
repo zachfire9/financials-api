@@ -395,6 +395,18 @@ Track each step as a living checklist. Each implementation PR should update this
 - Backend/static hosting scope: add optional `FINANCIALS_ACCESS_TOKEN` / `FinancialsAccessToken` configuration. When configured, all non-health API requests must include `X-Financials-Access-Token`; health and CORS preflight stay unauthenticated. Frontend/runtime token values must be supplied through ignored local deploy config and kept out of public docs.
 - Verification scope: prove unauthenticated requests fail, authenticated fake-data requests pass, the static frontend can be configured with protected API access outside git, and both persistent DynamoDB mode and ephemeral browser-owned mode remain clear to users.
 
+### Step 27: SAM-managed custom domain for the Financials UI
+
+- [ ] **Status:** Pending
+- **Branch:** `step-27-ui-custom-domain-infra` / API tracking branch TBD
+- **Pull Request:** TBD
+- Bring the manually configured `financials.zachfirestone.com` CloudFront alias, ACM certificate, and Route 53 alias into versioned infrastructure so future SAM deploys do not drift or remove the working custom domain.
+- UI infrastructure scope: add optional custom-domain parameters to the `financials-ui` SAM template, including `CustomDomainName`, `CertificateArn`, and optional hosted-zone inputs for Route 53 alias management. Keep the default no-domain path working for generated CloudFront domains.
+- Certificate/DNS scope: document that CloudFront certificates must live in `us-east-1`, support DNS validation outside git, and either manage the final Route 53 A/AAAA alias records from the template or document the manual alias fallback clearly.
+- API/CORS scope: update deploy docs so the API stack's `FinancialsAllowedOrigins` includes `https://financials.zachfirestone.com` when the custom UI domain is enabled, while keeping the generated CloudFront origin optional during transition.
+- Safety scope: avoid committing real certificate ARNs, hosted zone IDs, stack names, API URLs, tokens, or other environment-specific values unless they are intentionally public-safe; use placeholders and ignored local deploy config.
+- Verification scope: validate the UI SAM template, deploy/update the frontend stack in a way that preserves the existing working custom domain, confirm `https://financials.zachfirestone.com` loads the static app, and smoke-test a fake-data projection against the protected API.
+
 ## Open decisions
 
 - Go HTTP stack/router choice: standard library only vs `chi` as the first router dependency.
