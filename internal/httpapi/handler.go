@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/zachfire9/financials-api/internal/financialitems"
 	"github.com/zachfire9/financials-api/internal/projections"
 )
+
+const accessTokenHeader = "X-Financials-Access-Token"
 
 // NewHandler builds the HTTP handler tree for the API.
 //
@@ -22,13 +25,29 @@ func NewHandlerWithRepository(repository financialitems.Repository) http.Handler
 	return NewHandlerWithRepositoryAndCORS(repository, CORSConfig{})
 }
 
+// HandlerConfig contains cross-cutting HTTP settings for browser-hosted deployments.
+type HandlerConfig struct {
+	CORS          CORSConfig
+	AccessControl AccessControlConfig
+}
+
 // CORSConfig contains allowed browser origins for static-hosted UI deployments.
 type CORSConfig struct {
 	AllowedOrigins []string
 }
 
+// AccessControlConfig contains the optional shared-token gate for deployed personal-use APIs.
+type AccessControlConfig struct {
+	Token string
+}
+
 // NewHandlerWithRepositoryAndCORS builds the HTTP handler tree with an injected financial item repository and CORS config.
 func NewHandlerWithRepositoryAndCORS(repository financialitems.Repository, corsConfig CORSConfig) http.Handler {
+	return NewHandlerWithRepositoryAndConfig(repository, HandlerConfig{CORS: corsConfig})
+}
+
+// NewHandlerWithRepositoryAndConfig builds the HTTP handler tree with injected dependencies and deployment config.
+func NewHandlerWithRepositoryAndConfig(repository financialitems.Repository, handlerConfig HandlerConfig) http.Handler {
 	api := &apiHandler{financialItems: repository}
 
 	mux := http.NewServeMux()
@@ -41,7 +60,7 @@ func NewHandlerWithRepositoryAndCORS(repository financialitems.Repository, corsC
 	mux.HandleFunc("GET /financial-items/backup", api.handleFinancialItemsBackupExport)
 	mux.HandleFunc("POST /financial-items/backup", api.handleFinancialItemsBackupImport)
 	mux.HandleFunc("POST /projections", api.handleProjectionsCreate)
-	return withCORS(mux, corsConfig)
+	return withCORS(withAccessControl(mux, handlerConfig.AccessControl), handlerConfig.CORS)
 }
 
 func withCORS(next http.Handler, config CORSConfig) http.Handler {
@@ -57,7 +76,7 @@ func withCORS(next http.Handler, config CORSConfig) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, "+accessTokenHeader)
 		}
 
 		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
@@ -65,6 +84,25 @@ func withCORS(next http.Handler, config CORSConfig) http.Handler {
 			return
 		}
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+func withAccessControl(next http.Handler, config AccessControlConfig) http.Handler {
+	expectedToken := strings.TrimSpace(config.Token)
+	if expectedToken == "" {
+		return next
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" || (r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if r.Header.Get(accessTokenHeader) != expectedToken {
+			writeError(w, http.StatusUnauthorized, errors.New("missing or invalid access token"))
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }

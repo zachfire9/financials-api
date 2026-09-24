@@ -19,6 +19,7 @@ type Config struct {
 	StorageDriver  string
 	StoragePath    string
 	AllowedOrigins []string
+	AccessToken    string
 }
 
 // Load reads configuration from defaults, an optional .env file, and process env.
@@ -35,6 +36,7 @@ func Load(envFilePath string) (Config, error) {
 		StorageDriver:  valueFor("FINANCIALS_STORAGE_DRIVER", envFileValues, StorageDriverMemory),
 		StoragePath:    valueFor("FINANCIALS_STORAGE_PATH", envFileValues, ""),
 		AllowedOrigins: splitCSV(valueFor("FINANCIALS_ALLOWED_ORIGINS", envFileValues, "")),
+		AccessToken:    valueFor("FINANCIALS_ACCESS_TOKEN", envFileValues, ""),
 	}
 
 	if cfg.StorageDriver == StorageDriverMemory || cfg.StorageDriver == StorageDriverEphemeral {

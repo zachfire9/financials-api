@@ -387,13 +387,25 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 26: Deployed access control before real data
 
-- [ ] **Status:** Pending
-- **Branch:** `step-26-deployed-access-control`
-- **Pull Request:** TBD
+- [x] **Status:** Completed in API/UI repos
+- **Branch:** `step-26-deployed-access-control` / UI branch `step-26-deployed-access-control-ui`
+- **Pull Request:** [financials-api #21](https://github.com/zachfire9/financials-api/pull/21) / [financials-ui #13](https://github.com/zachfire9/financials-ui/pull/13)
 - Add an explicit deployed access-control step before storing or processing real financial data through the AWS-hosted app.
-- Recommendation: start with API Gateway API key + usage plan as the smallest acceptable first protection for personal fake-data testing, then move to Cognito, OIDC, or another stronger identity flow if the app becomes multi-user or internet-facing beyond personal testing.
-- Backend/static hosting scope: add API Gateway API key enforcement and a usage plan for the Lambda HTTP API path, document that this is a pragmatic gate rather than true user identity auth, pass any frontend/runtime secret values outside git, and keep all real keys out of public docs.
+- Recommendation implemented: keep the lower-cost API Gateway HTTP API path and add a pragmatic shared-token gate for personal deployed testing. This is not true user identity auth; move to Cognito, OIDC, or a Lambda authorizer if the app becomes multi-user or internet-facing beyond personal testing.
+- Backend/static hosting scope: add optional `FINANCIALS_ACCESS_TOKEN` / `FinancialsAccessToken` configuration. When configured, all non-health API requests must include `X-Financials-Access-Token`; health and CORS preflight stay unauthenticated. Frontend/runtime token values must be supplied through ignored local deploy config and kept out of public docs.
 - Verification scope: prove unauthenticated requests fail, authenticated fake-data requests pass, the static frontend can be configured with protected API access outside git, and both persistent DynamoDB mode and ephemeral browser-owned mode remain clear to users.
+
+### Step 27: SAM-managed custom domain for the Financials UI
+
+- [ ] **Status:** Pending
+- **Branch:** `step-27-ui-custom-domain-infra` / API tracking branch TBD
+- **Pull Request:** TBD
+- Bring the manually configured `financials.zachfirestone.com` CloudFront alias, ACM certificate, and Route 53 alias into versioned infrastructure so future SAM deploys do not drift or remove the working custom domain.
+- UI infrastructure scope: add optional custom-domain parameters to the `financials-ui` SAM template, including `CustomDomainName`, `CertificateArn`, and optional hosted-zone inputs for Route 53 alias management. Keep the default no-domain path working for generated CloudFront domains.
+- Certificate/DNS scope: document that CloudFront certificates must live in `us-east-1`, support DNS validation outside git, and either manage the final Route 53 A/AAAA alias records from the template or document the manual alias fallback clearly.
+- API/CORS scope: update deploy docs so the API stack's `FinancialsAllowedOrigins` includes `https://financials.zachfirestone.com` when the custom UI domain is enabled, while keeping the generated CloudFront origin optional during transition.
+- Safety scope: avoid committing real certificate ARNs, hosted zone IDs, stack names, API URLs, tokens, or other environment-specific values unless they are intentionally public-safe; use placeholders and ignored local deploy config.
+- Verification scope: validate the UI SAM template, deploy/update the frontend stack in a way that preserves the existing working custom domain, confirm `https://financials.zachfirestone.com` loads the static app, and smoke-test a fake-data projection against the protected API.
 
 ## Open decisions
 
@@ -401,7 +413,7 @@ Track each step as a living checklist. Each implementation PR should update this
 - Local storage adapter choice: simple JSON/file storage is implemented for lowest-friction local development; the first AWS path is ephemeral/no-database, and DynamoDB remains the likely adapter if persistent deployed storage is added later.
 - Initial financial item fields are set: name, amount, currency, annual return rate basis points, annual contribution, sort order, ID, timestamps, optional drawdown return rate, and optional contribution-inflation flag.
 - Whether financial item deletion is needed immediately or whether archive/inactive status is safer.
-- Deployed authentication/access control is required before using real financial data in AWS; the first planned protection is API Gateway API key + usage plan as a pragmatic personal-use gate, with Cognito/OIDC/Lambda authorizer or equivalent identity available later if the app becomes multi-user.
+- Deployed authentication/access control is required before using real financial data in AWS; Step 26 adds a pragmatic personal-use shared-token gate for the current HTTP API path, with Cognito/OIDC/Lambda authorizer or equivalent identity available later if the app becomes multi-user.
 - UI stack recommendation: Vite + React + TypeScript, with static build output suitable for S3/CloudFront or AWS Amplify later.
 - Local UI/API smoke testing should use placeholder bind-address docs and keep real LAN details out of git.
 - Projection v1 request/response shape is implemented for accumulation-only projections.

@@ -12,6 +12,7 @@ func TestLoadUsesDefaultsWhenEnvFileAndProcessEnvAreAbsent(t *testing.T) {
 	t.Setenv("FINANCIALS_STORAGE_DRIVER", "")
 	t.Setenv("FINANCIALS_STORAGE_PATH", "")
 	t.Setenv("FINANCIALS_ALLOWED_ORIGINS", "")
+	t.Setenv("FINANCIALS_ACCESS_TOKEN", "")
 
 	cfg, err := Load(filepath.Join(t.TempDir(), ".env"))
 	if err != nil {
@@ -30,6 +31,9 @@ func TestLoadUsesDefaultsWhenEnvFileAndProcessEnvAreAbsent(t *testing.T) {
 	if len(cfg.AllowedOrigins) != 0 {
 		t.Fatalf("expected no default CORS origins, got %v", cfg.AllowedOrigins)
 	}
+	if cfg.AccessToken != "" {
+		t.Fatalf("expected no default access token, got %q", cfg.AccessToken)
+	}
 }
 
 func TestLoadReadsEnvFileWhenProcessEnvIsAbsent(t *testing.T) {
@@ -37,9 +41,10 @@ func TestLoadReadsEnvFileWhenProcessEnvIsAbsent(t *testing.T) {
 	t.Setenv("FINANCIALS_STORAGE_DRIVER", "")
 	t.Setenv("FINANCIALS_STORAGE_PATH", "")
 	t.Setenv("FINANCIALS_ALLOWED_ORIGINS", "")
+	t.Setenv("FINANCIALS_ACCESS_TOKEN", "")
 
 	envPath := filepath.Join(t.TempDir(), ".env")
-	if err := os.WriteFile(envPath, []byte("FINANCIALS_API_ADDR=:9090\nFINANCIALS_STORAGE_DRIVER=json\nFINANCIALS_STORAGE_PATH=./local-data/financial-items.json\nFINANCIALS_ALLOWED_ORIGINS=http://localhost:5173, https://example-amplify-app.example.com\n"), 0o600); err != nil {
+	if err := os.WriteFile(envPath, []byte("FINANCIALS_API_ADDR=:9090\nFINANCIALS_STORAGE_DRIVER=json\nFINANCIALS_STORAGE_PATH=./local-data/financial-items.json\nFINANCIALS_ALLOWED_ORIGINS=http://localhost:5173, https://example-amplify-app.example.com\nFINANCIALS_ACCESS_TOKEN=example-local-token\n"), 0o600); err != nil {
 		t.Fatalf("write env file: %v", err)
 	}
 
@@ -61,6 +66,9 @@ func TestLoadReadsEnvFileWhenProcessEnvIsAbsent(t *testing.T) {
 	if !reflect.DeepEqual(cfg.AllowedOrigins, wantOrigins) {
 		t.Fatalf("expected env file allowed origins %v, got %v", wantOrigins, cfg.AllowedOrigins)
 	}
+	if cfg.AccessToken != "example-local-token" {
+		t.Fatalf("expected env file access token, got %q", cfg.AccessToken)
+	}
 }
 
 func TestLoadLetsProcessEnvOverrideEnvFile(t *testing.T) {
@@ -68,9 +76,10 @@ func TestLoadLetsProcessEnvOverrideEnvFile(t *testing.T) {
 	t.Setenv("FINANCIALS_STORAGE_DRIVER", "memory")
 	t.Setenv("FINANCIALS_STORAGE_PATH", "")
 	t.Setenv("FINANCIALS_ALLOWED_ORIGINS", "https://override.example.com")
+	t.Setenv("FINANCIALS_ACCESS_TOKEN", "override-token")
 
 	envPath := filepath.Join(t.TempDir(), ".env")
-	if err := os.WriteFile(envPath, []byte("FINANCIALS_API_ADDR=:9090\nFINANCIALS_STORAGE_DRIVER=json\nFINANCIALS_STORAGE_PATH=./local-data/financial-items.json\nFINANCIALS_ALLOWED_ORIGINS=http://localhost:5173\n"), 0o600); err != nil {
+	if err := os.WriteFile(envPath, []byte("FINANCIALS_API_ADDR=:9090\nFINANCIALS_STORAGE_DRIVER=json\nFINANCIALS_STORAGE_PATH=./local-data/financial-items.json\nFINANCIALS_ALLOWED_ORIGINS=http://localhost:5173\nFINANCIALS_ACCESS_TOKEN=example-local-token\n"), 0o600); err != nil {
 		t.Fatalf("write env file: %v", err)
 	}
 
@@ -91,6 +100,9 @@ func TestLoadLetsProcessEnvOverrideEnvFile(t *testing.T) {
 	wantOrigins := []string{"https://override.example.com"}
 	if !reflect.DeepEqual(cfg.AllowedOrigins, wantOrigins) {
 		t.Fatalf("expected process env allowed origins %v, got %v", wantOrigins, cfg.AllowedOrigins)
+	}
+	if cfg.AccessToken != "override-token" {
+		t.Fatalf("expected process env access token, got %q", cfg.AccessToken)
 	}
 }
 
