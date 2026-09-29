@@ -86,6 +86,8 @@ $env:FINANCIALS_STORAGE_DRIVER="ephemeral"; go run ./cmd/api
 
 The initial AWS backend path is optimized for the browser-owned ephemeral workflow: API Gateway HTTP API invokes a Go Lambda function, and the React app sends request-supplied projection items instead of relying on server-side session storage.
 
+GitHub Actions deployment setup is documented in [GitHub Actions API deploy](docs/github-actions-deploy.md). The workflow uses AWS OIDC and GitHub Secrets/Variables so deploy credentials and shared tokens stay out of git.
+
 Committed AWS files are public-safe placeholders only:
 
 - `template.yaml`: SAM template for HTTP API + Lambda using `FINANCIALS_STORAGE_DRIVER=ephemeral` by default.
