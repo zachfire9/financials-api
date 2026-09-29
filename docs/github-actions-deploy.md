@@ -66,7 +66,7 @@ On `push` to `master`, and on manual `workflow_dispatch`, the workflow:
 4. Installs the AWS SAM CLI.
 5. Assumes the AWS deploy role through OIDC.
 6. Runs `sam build`.
-7. Runs `sam deploy` with GitHub variables/secrets as parameter overrides.
+7. Runs `sam deploy --resolve-s3` with GitHub variables/secrets as parameter overrides. `--resolve-s3` lets SAM create/use its managed artifact bucket in the target account instead of requiring a committed bucket name.
 8. Reads the API URL from CloudFormation outputs and calls `/health`.
 
 ## Rollback
