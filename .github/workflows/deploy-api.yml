@@ -1,0 +1,73 @@
+name: Deploy Financials API
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: financials-api-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  API_STACK_NAME: ${{ vars.API_STACK_NAME || 'financials-api' }}
+  FINANCIALS_STORAGE_DRIVER: ${{ vars.FINANCIALS_STORAGE_DRIVER || 'ephemeral' }}
+  FINANCIALS_ALLOWED_ORIGINS: ${{ vars.FINANCIALS_ALLOWED_ORIGINS }}
+
+jobs:
+  deploy:
+    name: Test, build, and deploy API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Set up AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build Lambda artifact
+        run: sam build
+
+      - name: Deploy API stack
+        run: |
+          sam deploy \
+            --stack-name "$API_STACK_NAME" \
+            --region "$AWS_REGION" \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              "FinancialsStorageDriver=$FINANCIALS_STORAGE_DRIVER" \
+              "FinancialsAllowedOrigins=$FINANCIALS_ALLOWED_ORIGINS" \
+              "FinancialsAccessToken=${{ secrets.FINANCIALS_ACCESS_TOKEN }}"
+
+      - name: Smoke test health endpoint
+        run: |
+          API_BASE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "$API_STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='FinancialsApiUrl'].OutputValue | [0]" \
+            --output text)
+          echo "API base URL: $API_BASE_URL"
+          curl --fail --silent --show-error "$API_BASE_URL/health"

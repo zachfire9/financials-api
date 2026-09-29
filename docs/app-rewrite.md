@@ -409,16 +409,16 @@ Track each step as a living checklist. Each implementation PR should update this
 
 ### Step 28: GitHub Actions deploy automation
 
-- [ ] **Status:** Pending
+- [x] **Status:** Completed in API/UI repos; pending review/merge and AWS/GitHub settings setup
 - **Branch:** `step-28-github-actions-deploy` / UI branch `step-28-github-actions-deploy-ui`
-- **Pull Request:** TBD
+- **Pull Request:** [financials-api #23](https://github.com/zachfire9/financials-api/pull/23) / [financials-ui #15](https://github.com/zachfire9/financials-ui/pull/15)
 - Add GitHub Actions workflows that deploy the API and UI when reviewed branches are merged into `master`, with optional `workflow_dispatch` manual redeploy triggers.
 - AWS auth scope: use GitHub Actions OIDC and AWS IAM deploy roles instead of committed credentials or long-lived AWS access keys. Restrict trust policies to the `zachfire9/financials-api` and `zachfire9/financials-ui` repositories on `refs/heads/master`.
-- API workflow scope: run Go tests, build the SAM Lambda artifact, and deploy the existing API stack with placeholder-safe configuration for `FinancialsStorageDriver`, `FinancialsAllowedOrigins`, and the shared-token parameter supplied through GitHub Actions secrets.
-- UI workflow scope: run npm tests/build, supply build-time Vite values through GitHub Actions variables/secrets, sync `dist/` to the existing S3 frontend bucket, and invalidate the existing CloudFront distribution. Keep optional frontend infrastructure/SAM deploy as an explicit decision so static asset deploys do not unexpectedly mutate CloudFront/DNS.
+- API workflow scope: run Go tests, build the SAM Lambda artifact, and deploy the existing API stack with placeholder-safe configuration for `FinancialsStorageDriver`, `FinancialsAllowedOrigins`, and the shared-token parameter supplied through GitHub Actions secrets. Document required repo variables/secrets and AWS role permissions in `docs/github-actions-deploy.md`.
+- UI workflow scope: run npm tests/build, supply build-time Vite values through GitHub Actions variables/secrets, sync `dist/` to the existing S3 frontend bucket, and invalidate the existing CloudFront distribution. Keep optional frontend infrastructure/SAM deploy behind `DEPLOY_FRONTEND_INFRA=true` so static asset deploys do not unexpectedly mutate CloudFront/DNS.
 - Token/secrets scope: keep `FinancialsAccessToken` / `VITE_FINANCIALS_ACCESS_TOKEN` out of git by using GitHub Secrets and local ignored config. Explicitly note that this keeps the token out of the codebase but not out of deployed static JavaScript; a future CloudFront `/api/*` proxy or real auth would be needed to keep the token fully server-side.
 - Cost scope: document expected incremental cost as negligible for normal personal use: public-repo GitHub Actions minutes are typically free, CloudFormation deploys are not directly billed, S3/CloudFront invalidations are tiny/usually within free tier, and runtime AWS costs remain traffic-dependent.
-- Verification scope: document required repository variables/secrets, validate OIDC role assumption, run workflows through a manual dispatch or harmless merge, confirm API health/protected-token behavior, confirm `https://financials.zachfirestone.com` loads the latest UI, and include rollback guidance for rerunning prior commits or manual SAM/static deploy commands.
+- Verification scope: locally parse workflow YAML, run repo tests/builds/audits, document required repository variables/secrets, validate OIDC role assumption once AWS/GitHub settings are configured, run workflows through manual dispatch or harmless merge, confirm API health/protected-token behavior, confirm `https://financials.zachfirestone.com` loads the latest UI, and use documented rollback guidance for rerunning prior commits or manual SAM/static deploy commands.
 
 ## Open decisions
 
