@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: financials-api-deploy-${{ github.ref }}
@@ -21,8 +20,8 @@ env:
   FINANCIALS_ALLOWED_ORIGINS: ${{ vars.FINANCIALS_ALLOWED_ORIGINS }}
 
 jobs:
-  deploy:
-    name: Test, build, and deploy API
+  test:
+    name: Test API
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -37,6 +36,47 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+  build:
+    name: Build API artifact
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Set up AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Build Lambda artifact
+        run: sam build
+
+      - name: Upload SAM build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: financials-api-sam-build
+          path: .aws-sam/build/
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy API stack
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download SAM build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: financials-api-sam-build
+          path: .aws-sam/build
+
       - name: Set up AWS SAM CLI
         uses: aws-actions/setup-sam@v2
 
@@ -46,12 +86,10 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Build Lambda artifact
-        run: sam build
-
       - name: Deploy API stack
         run: |
           sam deploy \
+            --template-file .aws-sam/build/template.yaml \
             --stack-name "$API_STACK_NAME" \
             --region "$AWS_REGION" \
             --capabilities CAPABILITY_IAM \

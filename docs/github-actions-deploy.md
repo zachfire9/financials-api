@@ -58,16 +58,25 @@ The role needs enough permissions to run `sam deploy` for the existing API stack
 
 ## Workflow behavior
 
-On `push` to `master`, and on manual `workflow_dispatch`, the workflow:
+On `push` to `master`, and on manual `workflow_dispatch`, the workflow runs three separate jobs:
 
-1. Checks out the repo.
-2. Sets up Go 1.22.
-3. Runs `go test ./...`.
-4. Installs the AWS SAM CLI.
-5. Assumes the AWS deploy role through OIDC.
-6. Runs `sam build`.
-7. Runs `sam deploy --resolve-s3` with GitHub variables/secrets as parameter overrides. `--resolve-s3` lets SAM create/use its managed artifact bucket in the target account instead of requiring a committed bucket name.
-8. Reads the API URL from CloudFormation outputs and calls `/health`.
+1. `Test API`
+   - Checks out the repo.
+   - Sets up Go 1.22.
+   - Runs `go test ./...`.
+2. `Build API artifact`
+   - Runs after tests pass.
+   - Checks out the repo and sets up Go 1.22.
+   - Installs the AWS SAM CLI.
+   - Runs `sam build`.
+   - Uploads `.aws-sam/build/` as the `financials-api-sam-build` artifact.
+3. `Deploy API stack`
+   - Runs after the SAM build succeeds.
+   - Downloads the `financials-api-sam-build` artifact.
+   - Installs the AWS SAM CLI.
+   - Assumes the AWS deploy role through OIDC.
+   - Runs `sam deploy --template-file .aws-sam/build/template.yaml --resolve-s3` with GitHub variables/secrets as parameter overrides. `--resolve-s3` lets SAM create/use its managed artifact bucket in the target account instead of requiring a committed bucket name.
+   - Reads the API URL from CloudFormation outputs and calls `/health`.
 
 ## Rollback
 
