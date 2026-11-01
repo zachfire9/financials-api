@@ -90,7 +90,26 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Deploy API stack
+        env:
+          FINANCIALS_ACCESS_TOKEN: ${{ secrets.FINANCIALS_ACCESS_TOKEN }}
         run: |
+          # sam rejects empty "Key=" overrides with a usage error (exit 2),
+          # so optional parameters are only passed when they have a value.
+          PARAMS=(
+            "FinancialsStorageDriver=$FINANCIALS_STORAGE_DRIVER"
+            "FinancialsThrottlingRateLimit=$FINANCIALS_THROTTLING_RATE_LIMIT"
+            "FinancialsThrottlingBurstLimit=$FINANCIALS_THROTTLING_BURST_LIMIT"
+          )
+          if [ -n "$FINANCIALS_ALLOWED_ORIGINS" ]; then
+            PARAMS+=("FinancialsAllowedOrigins=$FINANCIALS_ALLOWED_ORIGINS")
+          fi
+          if [ -n "$FINANCIALS_ACCESS_TOKEN" ]; then
+            PARAMS+=("FinancialsAccessToken=$FINANCIALS_ACCESS_TOKEN")
+          fi
+          if [ -n "$FINANCIALS_RESERVED_CONCURRENCY" ]; then
+            PARAMS+=("FinancialsReservedConcurrency=$FINANCIALS_RESERVED_CONCURRENCY")
+          fi
+
           sam deploy \
             --template-file .aws-sam/build/template.yaml \
             --stack-name "$API_STACK_NAME" \
@@ -99,13 +118,7 @@ jobs:
             --resolve-s3 \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              "FinancialsStorageDriver=$FINANCIALS_STORAGE_DRIVER" \
-              "FinancialsAllowedOrigins=$FINANCIALS_ALLOWED_ORIGINS" \
-              "FinancialsThrottlingRateLimit=$FINANCIALS_THROTTLING_RATE_LIMIT" \
-              "FinancialsThrottlingBurstLimit=$FINANCIALS_THROTTLING_BURST_LIMIT" \
-              "FinancialsReservedConcurrency=$FINANCIALS_RESERVED_CONCURRENCY" \
-              "FinancialsAccessToken=${{ secrets.FINANCIALS_ACCESS_TOKEN }}"
+            --parameter-overrides "${PARAMS[@]}"
 
       - name: Smoke test health endpoint
         run: |
