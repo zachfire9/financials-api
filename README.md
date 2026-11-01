@@ -137,6 +137,16 @@ sam deploy --stack-name financials-api --profile zachfire9 --capabilities CAPABI
 
 This shared-token gate is a pragmatic personal-use blocker, not user identity or a replacement for Cognito/OIDC/Lambda-authorizer auth if the app becomes multi-user or stores real cloud data.
 
+The static UI bundles the token into its JavaScript, so treat it as readable by anyone who loads the site. Cost is bounded by the guardrails below instead.
+
+### Cost guardrails
+
+- **API Gateway throttling:** `FinancialsThrottlingRateLimit` (default `2` requests/second) and `FinancialsThrottlingBurstLimit` (default `5`) apply to every route. Requests above the limit get `429 Too Many Requests` from API Gateway and never invoke Lambda. Throttles are best-effort targets, not exact ceilings.
+- **Lambda reserved concurrency (optional):** set `FinancialsReservedConcurrency` (for example `2`) as a backstop. Leave it blank if the account's Lambda concurrency quota is low, because AWS requires at least 100 unreserved executions to remain.
+- **AWS Budgets alerts:** configured at the account level (outside this repo) for actual and forecasted monthly spend. Budgets alert only; they do not stop spending, and billing data lags actual usage.
+
+Requests that pass the throttle but fail the access-token check still invoke Lambda and are billed, so the throttle is what bounds worst-case cost.
+
 Keep real deployed origins, access tokens, private LAN hostnames/IPs, and environment-specific deployment values in ignored `.env` files or private operator notes, not in committed docs.
 
 Check the health endpoint:

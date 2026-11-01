@@ -19,6 +19,28 @@ Parameters:
     Default: ''
     NoEcho: true
     Description: Optional shared access token required in X-Financials-Access-Token for deployed personal-use API requests. Keep real values outside git.
+  FinancialsThrottlingRateLimit:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    Description: Steady-state requests per second allowed across all API routes before API Gateway returns 429. Throttled requests do not reach Lambda.
+  FinancialsThrottlingBurstLimit:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    Description: Maximum burst of requests API Gateway accepts above the steady-state rate before returning 429.
+  FinancialsReservedConcurrency:
+    Type: String
+    Default: ''
+    AllowedPattern: '^[0-9]*$'
+    Description: Optional cap on concurrent Lambda executions, as a cost backstop behind API throttling. Leave blank to skip. AWS rejects this if it would leave fewer than 100 unreserved executions in the account, so new accounts with a low concurrency quota must leave it blank.
+
+Conditions:
+  HasReservedConcurrency:
+    Fn::Not:
+      - Fn::Equals:
+          - Ref: FinancialsReservedConcurrency
+          - ''
 
 Globals:
   Function:
@@ -37,6 +59,9 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       Description: HTTP API for the Financials API Lambda backend.
+      DefaultRouteSettings:
+        ThrottlingRateLimit: !Ref FinancialsThrottlingRateLimit
+        ThrottlingBurstLimit: !Ref FinancialsThrottlingBurstLimit
 
   FinancialsApiFunction:
     Type: AWS::Serverless::Function
@@ -47,6 +72,11 @@ Resources:
       CodeUri: .
       Handler: bootstrap
       Runtime: provided.al2023
+      ReservedConcurrentExecutions:
+        Fn::If:
+          - HasReservedConcurrency
+          - Ref: FinancialsReservedConcurrency
+          - Ref: AWS::NoValue
       Events:
         ApiRoot:
           Type: HttpApi

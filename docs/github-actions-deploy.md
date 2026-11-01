@@ -19,6 +19,9 @@ Add these repository settings in GitHub before enabling the workflow.
 - `API_STACK_NAME`: CloudFormation stack name, for example `financials-api`.
 - `FINANCIALS_STORAGE_DRIVER`: normally `ephemeral` for browser-owned sessions.
 - `FINANCIALS_ALLOWED_ORIGINS`: comma-separated static UI origins allowed by CORS, for example `https://<custom-domain>`.
+- `FINANCIALS_THROTTLING_RATE_LIMIT` (optional): steady-state API requests per second before API Gateway returns 429. Defaults to `2`.
+- `FINANCIALS_THROTTLING_BURST_LIMIT` (optional): burst allowance above the steady-state rate. Defaults to `5`.
+- `FINANCIALS_RESERVED_CONCURRENCY` (optional): cap on concurrent Lambda executions, for example `2`. Leave unset if the account's Lambda concurrency quota is low (new accounts often start at 10), because AWS requires at least 100 unreserved executions to remain.
 
 Keep real deployed values in GitHub settings or private operator notes, not committed config files.
 
