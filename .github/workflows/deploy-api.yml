@@ -18,6 +18,9 @@ env:
   API_STACK_NAME: ${{ vars.API_STACK_NAME || 'financials-api' }}
   FINANCIALS_STORAGE_DRIVER: ${{ vars.FINANCIALS_STORAGE_DRIVER || 'ephemeral' }}
   FINANCIALS_ALLOWED_ORIGINS: ${{ vars.FINANCIALS_ALLOWED_ORIGINS }}
+  FINANCIALS_THROTTLING_RATE_LIMIT: ${{ vars.FINANCIALS_THROTTLING_RATE_LIMIT || '2' }}
+  FINANCIALS_THROTTLING_BURST_LIMIT: ${{ vars.FINANCIALS_THROTTLING_BURST_LIMIT || '5' }}
+  FINANCIALS_RESERVED_CONCURRENCY: ${{ vars.FINANCIALS_RESERVED_CONCURRENCY }}
 
 jobs:
   test:
@@ -99,6 +102,9 @@ jobs:
             --parameter-overrides \
               "FinancialsStorageDriver=$FINANCIALS_STORAGE_DRIVER" \
               "FinancialsAllowedOrigins=$FINANCIALS_ALLOWED_ORIGINS" \
+              "FinancialsThrottlingRateLimit=$FINANCIALS_THROTTLING_RATE_LIMIT" \
+              "FinancialsThrottlingBurstLimit=$FINANCIALS_THROTTLING_BURST_LIMIT" \
+              "FinancialsReservedConcurrency=$FINANCIALS_RESERVED_CONCURRENCY" \
               "FinancialsAccessToken=${{ secrets.FINANCIALS_ACCESS_TOKEN }}"
 
       - name: Smoke test health endpoint
