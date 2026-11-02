@@ -147,9 +147,11 @@ These decisions materially affect implementation, so the planning step should no
    - Better default than an even split: withdraw proportionally from each item based on the prior year's balance, because it is deterministic and works with any number of items.
    - Future strategy shape should support account priority and/or per-item withdrawal amounts, for example withdrawing from a Roth IRA before other accounts for early-retirement years.
    - Avoid naming the v1 proportional allocation as the final retirement strategy; keep it as the fallback when no explicit strategy is supplied.
+   - Implemented shortfall handling: if an item cannot cover its proportional share after its drawdown return is applied, the shortfall is taken from items that still have money, proportionally to what each has left. A shortfall is only reported while every item is empty.
 
 4. **Depletion behavior**
    - Recommended v1: floor individual item balances at zero and report any unfunded withdrawal amount.
+   - Implemented: `unfundedWithdrawalCents` is reported every drawdown year the withdrawal can't be fully covered, including years after all items are depleted. Per-item unfunded amounts follow each item's original share (evenly when no item had a balance), so they sum to the year's total. For every drawdown year, withdrawals plus unfunded equal the year's withdrawal amount.
    - Alternative: allow negative balances to make the shortfall obvious in the same balance field.
 
 5. **Contributions during drawdown**
