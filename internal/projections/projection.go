@@ -2,6 +2,7 @@ package projections
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -15,6 +16,9 @@ const (
 	basisPointsPerWhole                = 10000
 )
 
+// currencyCodePattern matches ISO 4217-style codes: exactly three uppercase letters.
+var currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
+
 type Phase string
 
 const (
@@ -24,6 +28,16 @@ const (
 )
 
 // Request contains the pure domain inputs needed to calculate a whole-year projection.
+//
+// AnnualWithdrawalInflationRateBasisPoints is the projection's single inflation
+// rate. It grows the annual withdrawal every year (including saving years, so
+// AnnualWithdrawalCents is in today's dollars) and grows the contribution of
+// each item with InflateAnnualContribution set during saving years.
+//
+// Setting any of SavingYears, DrawdownYears, AnnualWithdrawalCents or the
+// inflation rate selects the phase projection. The legacy Years-only
+// (accumulation) projection therefore always has 0% inflation, so
+// InflateAnnualContribution has no effect there.
 type Request struct {
 	Years                                    int         `json:"years"`
 	SavingYears                              int         `json:"savingYears"`
@@ -270,8 +284,8 @@ func validate(request Request) error {
 		if strings.TrimSpace(item.Currency) == "" {
 			problems = append(problems, fmt.Sprintf("items[%d].currency is required", index))
 		} else {
-			if item.Currency != strings.ToUpper(item.Currency) {
-				problems = append(problems, fmt.Sprintf("items[%d].currency must be uppercase ISO-style text", index))
+			if !currencyCodePattern.MatchString(item.Currency) {
+				problems = append(problems, fmt.Sprintf("items[%d].currency must be a 3-letter uppercase code such as USD", index))
 			}
 			if currency == "" {
 				currency = item.Currency

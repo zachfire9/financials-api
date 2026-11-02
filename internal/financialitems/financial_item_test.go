@@ -117,3 +117,28 @@ func TestValidateCreateFinancialItemRequestRejectsNegativeSortOrder(t *testing.T
 		t.Fatalf("expected sortOrder validation error, got %v", err)
 	}
 }
+
+func TestValidateCreateFinancialItemRequestRequiresThreeLetterCurrencyCode(t *testing.T) {
+	for _, currency := range []string{"US", "USDX", "usd", "U$D", "US1", " USD"} {
+		t.Run(currency, func(t *testing.T) {
+			request := FakeCreateFinancialItemRequest()
+			request.Currency = currency
+
+			err := request.Validate()
+			if err == nil {
+				t.Fatalf("expected currency %q to fail validation", currency)
+			}
+			if !strings.Contains(err.Error(), "3-letter") {
+				t.Fatalf("expected currency code validation error, got %v", err)
+			}
+		})
+	}
+
+	for _, currency := range []string{"USD", "EUR", "JPY"} {
+		request := FakeCreateFinancialItemRequest()
+		request.Currency = currency
+		if err := request.Validate(); err != nil {
+			t.Fatalf("expected currency %q to be valid, got %v", currency, err)
+		}
+	}
+}

@@ -37,3 +37,25 @@ func TestNewFinancialItemsRepositoryRejectsUnknownStorageDriver(t *testing.T) {
 		t.Fatal("expected unknown storage driver error")
 	}
 }
+
+func TestNewHandlerOnlyServesStatelessRoutesForEphemeralStorage(t *testing.T) {
+	for _, tc := range []struct {
+		driver     string
+		wantStatus int
+	}{
+		{config.StorageDriverEphemeral, http.StatusNotFound},
+		{config.StorageDriverMemory, http.StatusOK},
+	} {
+		handler, err := NewHandler(config.Config{StorageDriver: tc.driver})
+		if err != nil {
+			t.Fatalf("%s: new handler: %v", tc.driver, err)
+		}
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/financial-items", nil))
+
+		if recorder.Code != tc.wantStatus {
+			t.Fatalf("%s: expected GET /financial-items status %d, got %d", tc.driver, tc.wantStatus, recorder.Code)
+		}
+	}
+}

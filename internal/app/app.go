@@ -23,6 +23,7 @@ func NewHandler(cfg config.Config) (http.Handler, error) {
 		AccessControl: httpapi.AccessControlConfig{
 			Token: cfg.AccessToken,
 		},
+		StatelessProjectionsOnly: cfg.StorageDriver == config.StorageDriverEphemeral,
 	}), nil
 }
 

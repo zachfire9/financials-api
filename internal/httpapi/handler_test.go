@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -798,5 +799,56 @@ func decodeJSON(t *testing.T, recorder *httptest.ResponseRecorder, destination a
 	}
 	if err := json.NewDecoder(recorder.Body).Decode(destination); err != nil {
 		t.Fatalf("decode response: %v", err)
+	}
+}
+
+func TestStatelessProjectionsOnlyServesOnlyHealthAndProjections(t *testing.T) {
+	repository := financialitems.NewInMemoryRepository()
+	if _, err := repository.Create(context.Background(), financialitems.CreateFinancialItemRequest{
+		Name:        "Example saved item",
+		AmountCents: 10000,
+		Currency:    "USD",
+	}); err != nil {
+		t.Fatalf("seed repository: %v", err)
+	}
+	handler := NewHandlerWithRepositoryAndConfig(repository, HandlerConfig{StatelessProjectionsOnly: true})
+
+	serve := func(method, path, body string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(method, path, strings.NewReader(body))
+		handler.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/financial-items"},
+		{http.MethodPost, "/financial-items"},
+		{http.MethodGet, "/financial-items/item_000001"},
+		{http.MethodPut, "/financial-items/item_000001"},
+		{http.MethodDelete, "/financial-items/item_000001"},
+		{http.MethodGet, "/financial-items/backup"},
+		{http.MethodPost, "/financial-items/backup"},
+	} {
+		if recorder := serve(route.method, route.path, "{}"); recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s %s: expected status %d, got %d", route.method, route.path, http.StatusNotFound, recorder.Code)
+		}
+	}
+
+	if recorder := serve(http.MethodGet, "/health", ""); recorder.Code != http.StatusOK {
+		t.Fatalf("health: expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+
+	withItems := serve(http.MethodPost, "/projections", `{"years":1,"items":[{"id":"a","name":"Example","amountCents":10000,"currency":"USD","annualReturnRateBasisPoints":500}]}`)
+	if withItems.Code != http.StatusOK {
+		t.Fatalf("projection with items: expected status %d, got %d: %s", http.StatusOK, withItems.Code, withItems.Body.String())
+	}
+
+	// Without items, the projection must not fall back to the instance's repository.
+	withoutItems := serve(http.MethodPost, "/projections", `{"years":1}`)
+	if withoutItems.Code != http.StatusBadRequest {
+		t.Fatalf("projection without items: expected status %d, got %d", http.StatusBadRequest, withoutItems.Code)
+	}
+	if !strings.Contains(withoutItems.Body.String(), "items are required") {
+		t.Fatalf("expected items required error, got %s", withoutItems.Body.String())
 	}
 }

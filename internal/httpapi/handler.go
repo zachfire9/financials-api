@@ -29,6 +29,11 @@ func NewHandlerWithRepository(repository financialitems.Repository) http.Handler
 type HandlerConfig struct {
 	CORS          CORSConfig
 	AccessControl AccessControlConfig
+	// StatelessProjectionsOnly serves only GET /health and POST /projections,
+	// and requires projection requests to include their items. Used for the
+	// ephemeral storage driver, where each Lambda instance would otherwise keep
+	// its own unshared in-memory copy of saved items.
+	StatelessProjectionsOnly bool
 }
 
 // CORSConfig contains allowed browser origins for static-hosted UI deployments.
@@ -48,10 +53,15 @@ func NewHandlerWithRepositoryAndCORS(repository financialitems.Repository, corsC
 
 // NewHandlerWithRepositoryAndConfig builds the HTTP handler tree with injected dependencies and deployment config.
 func NewHandlerWithRepositoryAndConfig(repository financialitems.Repository, handlerConfig HandlerConfig) http.Handler {
-	api := &apiHandler{financialItems: repository}
+	api := &apiHandler{financialItems: repository, statelessProjectionsOnly: handlerConfig.StatelessProjectionsOnly}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", api.handleHealth)
+	mux.HandleFunc("POST /projections", api.handleProjectionsCreate)
+	if handlerConfig.StatelessProjectionsOnly {
+		return withCORS(withAccessControl(mux, handlerConfig.AccessControl), handlerConfig.CORS)
+	}
+
 	mux.HandleFunc("GET /financial-items", api.handleFinancialItemsList)
 	mux.HandleFunc("POST /financial-items", api.handleFinancialItemsCreate)
 	mux.HandleFunc("GET /financial-items/{id}", api.handleFinancialItemsGet)
@@ -59,7 +69,6 @@ func NewHandlerWithRepositoryAndConfig(repository financialitems.Repository, han
 	mux.HandleFunc("DELETE /financial-items/{id}", api.handleFinancialItemsDelete)
 	mux.HandleFunc("GET /financial-items/backup", api.handleFinancialItemsBackupExport)
 	mux.HandleFunc("POST /financial-items/backup", api.handleFinancialItemsBackupImport)
-	mux.HandleFunc("POST /projections", api.handleProjectionsCreate)
 	return withCORS(withAccessControl(mux, handlerConfig.AccessControl), handlerConfig.CORS)
 }
 
@@ -108,7 +117,8 @@ func withAccessControl(next http.Handler, config AccessControlConfig) http.Handl
 }
 
 type apiHandler struct {
-	financialItems financialitems.Repository
+	financialItems           financialitems.Repository
+	statelessProjectionsOnly bool
 }
 
 type healthResponse struct {
@@ -215,7 +225,7 @@ func (api *apiHandler) handleProjectionsCreate(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if len(request.Items) == 0 {
+	if len(request.Items) == 0 && !api.statelessProjectionsOnly {
 		items, err := api.financialItems.List(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)

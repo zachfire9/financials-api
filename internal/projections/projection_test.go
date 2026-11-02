@@ -541,6 +541,14 @@ func TestCalculateRejectsInvalidRequests(t *testing.T) {
 			want: "years",
 		},
 		{
+			name: "currency must be a 3-letter code",
+			request: Request{Years: 1, Items: []ItemInput{{
+				Name:     "Example",
+				Currency: "US",
+			}}},
+			want: "3-letter",
+		},
+		{
 			name: "v1 years cannot be combined with v2 phase fields",
 			request: Request{Years: 10, SavingYears: 5, Items: []ItemInput{{
 				Name:     "Example",
