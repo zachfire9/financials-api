@@ -28,6 +28,16 @@ const (
 )
 
 // Request contains the pure domain inputs needed to calculate a whole-year projection.
+//
+// AnnualWithdrawalInflationRateBasisPoints is the projection's single inflation
+// rate. It grows the annual withdrawal every year (including saving years, so
+// AnnualWithdrawalCents is in today's dollars) and grows the contribution of
+// each item with InflateAnnualContribution set during saving years.
+//
+// Setting any of SavingYears, DrawdownYears, AnnualWithdrawalCents or the
+// inflation rate selects the phase projection. The legacy Years-only
+// (accumulation) projection therefore always has 0% inflation, so
+// InflateAnnualContribution has no effect there.
 type Request struct {
 	Years                                    int         `json:"years"`
 	SavingYears                              int         `json:"savingYears"`
