@@ -319,6 +319,156 @@ func TestCalculateFloorsDrawdownBalancesAndReportsUnfundedWithdrawal(t *testing.
 	assertYearlyPhaseBalance(t, projection.Totals[1], 1, PhaseDrawdown, 0, 0, 10000, 0, 5000)
 }
 
+func TestCalculateReallocatesDrawdownShortfallToItemsWithRemainingBalance(t *testing.T) {
+	drawdownLoss := -2500
+	projection, err := Calculate(Request{
+		DrawdownYears:         1,
+		AnnualWithdrawalCents: 8000000,
+		Items: []ItemInput{
+			{ID: "item_000001", Name: "Example steady account", AmountCents: 5000000, Currency: "USD"},
+			{ID: "item_000002", Name: "Example volatile account", AmountCents: 5000000, Currency: "USD", DrawdownAnnualReturnRateBasisPoints: &drawdownLoss},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected drawdown projection to calculate, got %v", err)
+	}
+
+	// Each item's proportional share is $40,000. The volatile item only has
+	// $37,500 after its loss, so the steady item covers the remaining $2,500.
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, PhaseDrawdown, 750000, 0, 4250000, 0, 0)
+	assertYearlyPhaseBalance(t, projection.Items[1].YearlyBalances[1], 1, PhaseDrawdown, 0, 0, 3750000, -1250000, 0)
+	assertYearlyPhaseBalance(t, projection.Totals[1], 1, PhaseDrawdown, 750000, 0, 8000000, -1250000, 0)
+}
+
+func TestCalculateReallocatesShortfallFromSeveralItemsToOneFundedItem(t *testing.T) {
+	halfLoss := -5000
+	projection, err := Calculate(Request{
+		DrawdownYears:         1,
+		AnnualWithdrawalCents: 18000,
+		Items: []ItemInput{
+			{ID: "item_000001", Name: "Example funded account", AmountCents: 10000, Currency: "USD"},
+			{ID: "item_000002", Name: "Example short account A", AmountCents: 10000, Currency: "USD", DrawdownAnnualReturnRateBasisPoints: &halfLoss},
+			{ID: "item_000003", Name: "Example short account B", AmountCents: 10000, Currency: "USD", DrawdownAnnualReturnRateBasisPoints: &halfLoss},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected drawdown projection to calculate, got %v", err)
+	}
+
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, PhaseDrawdown, 2000, 0, 8000, 0, 0)
+	assertYearlyPhaseBalance(t, projection.Items[1].YearlyBalances[1], 1, PhaseDrawdown, 0, 0, 5000, -5000, 0)
+	assertYearlyPhaseBalance(t, projection.Items[2].YearlyBalances[1], 1, PhaseDrawdown, 0, 0, 5000, -5000, 0)
+	assertYearlyPhaseBalance(t, projection.Totals[1], 1, PhaseDrawdown, 2000, 0, 18000, -10000, 0)
+}
+
+func TestCalculateReportsUnfundedWithdrawalsAfterAllItemsAreDepleted(t *testing.T) {
+	projection, err := Calculate(Request{
+		DrawdownYears:         3,
+		AnnualWithdrawalCents: 15000,
+		Items: []ItemInput{
+			{ID: "item_000001", Name: "Example larger account", AmountCents: 6000, Currency: "USD"},
+			{ID: "item_000002", Name: "Example smaller account", AmountCents: 4000, Currency: "USD"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected drawdown projection to calculate, got %v", err)
+	}
+
+	// Year 1: $100 covers part of the $150 withdrawal; the $50 gap follows the
+	// items' 60/40 shares.
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, PhaseDrawdown, 0, 0, 6000, 0, 3000)
+	assertYearlyPhaseBalance(t, projection.Items[1].YearlyBalances[1], 1, PhaseDrawdown, 0, 0, 4000, 0, 2000)
+	assertYearlyPhaseBalance(t, projection.Totals[1], 1, PhaseDrawdown, 0, 0, 10000, 0, 5000)
+
+	// Later years: every item is empty, so the full withdrawal is unfunded and
+	// split evenly instead of disappearing.
+	for year := 2; year <= 3; year++ {
+		assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[year], year, PhaseDrawdown, 0, 0, 0, 0, 7500)
+		assertYearlyPhaseBalance(t, projection.Items[1].YearlyBalances[year], year, PhaseDrawdown, 0, 0, 0, 0, 7500)
+		assertYearlyPhaseBalance(t, projection.Totals[year], year, PhaseDrawdown, 0, 0, 0, 0, 15000)
+	}
+}
+
+func TestCalculateGivesNoDrawdownShareToItemsStartingAtZero(t *testing.T) {
+	projection, err := Calculate(Request{
+		DrawdownYears:         1,
+		AnnualWithdrawalCents: 3000,
+		Items: []ItemInput{
+			{ID: "item_000001", Name: "Example empty account", AmountCents: 0, Currency: "USD"},
+			{ID: "item_000002", Name: "Example funded account", AmountCents: 10000, Currency: "USD"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected drawdown projection to calculate, got %v", err)
+	}
+
+	assertYearlyPhaseBalance(t, projection.Items[0].YearlyBalances[1], 1, PhaseDrawdown, 0, 0, 0, 0, 0)
+	assertYearlyPhaseBalance(t, projection.Items[1].YearlyBalances[1], 1, PhaseDrawdown, 7000, 0, 3000, 0, 0)
+}
+
+func TestCalculateDrawdownAlwaysAccountsForTheFullWithdrawal(t *testing.T) {
+	loss := -3333
+	steepLoss := -9000
+	gain := 517
+	cases := []struct {
+		name       string
+		withdrawal int64
+		items      []ItemInput
+	}{
+		{
+			name:       "uneven cents across three items",
+			withdrawal: 10001,
+			items: []ItemInput{
+				{ID: "a", Name: "A", AmountCents: 3333, Currency: "USD"},
+				{ID: "b", Name: "B", AmountCents: 3333, Currency: "USD", DrawdownAnnualReturnRateBasisPoints: &loss},
+				{ID: "c", Name: "C", AmountCents: 3334, Currency: "USD", DrawdownAnnualReturnRateBasisPoints: &gain},
+			},
+		},
+		{
+			name:       "mixed returns depleting over several years",
+			withdrawal: 777777,
+			items: []ItemInput{
+				{ID: "a", Name: "A", AmountCents: 1234567, Currency: "USD", AnnualReturnRateBasisPoints: 700},
+				{ID: "b", Name: "B", AmountCents: 987654, Currency: "USD", AnnualReturnRateBasisPoints: 500, DrawdownAnnualReturnRateBasisPoints: &steepLoss},
+				{ID: "c", Name: "C", AmountCents: 1, Currency: "USD"},
+				{ID: "d", Name: "D", AmountCents: 0, Currency: "USD"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			projection, err := Calculate(Request{
+				DrawdownYears:                            8,
+				AnnualWithdrawalCents:                    tc.withdrawal,
+				AnnualWithdrawalInflationRateBasisPoints: 300,
+				Items:                                    tc.items,
+			})
+			if err != nil {
+				t.Fatalf("expected drawdown projection to calculate, got %v", err)
+			}
+
+			expectedWithdrawal := tc.withdrawal
+			for year := 1; year <= 8; year++ {
+				total := projection.Totals[year]
+				if got := total.WithdrawalCents + total.UnfundedWithdrawalCents; got != expectedWithdrawal {
+					t.Fatalf("year %d: withdrawal %d + unfunded %d = %d, want %d", year, total.WithdrawalCents, total.UnfundedWithdrawalCents, got, expectedWithdrawal)
+				}
+				for _, item := range projection.Items {
+					balance := item.YearlyBalances[year]
+					if balance.BalanceCents < 0 || balance.WithdrawalCents < 0 || balance.UnfundedWithdrawalCents < 0 {
+						t.Fatalf("year %d item %s: negative value %+v", year, item.ID, balance)
+					}
+					if balance.UnfundedWithdrawalCents > 0 && total.BalanceCents > 0 {
+						t.Fatalf("year %d: unfunded %d reported while %d remains", year, total.UnfundedWithdrawalCents, total.BalanceCents)
+					}
+				}
+				expectedWithdrawal += roundBasisPointGrowth(expectedWithdrawal, 300)
+			}
+		})
+	}
+}
+
 func TestCalculateAllowsNegativeReturnAssumptions(t *testing.T) {
 	projection, err := Calculate(Request{
 		Years: 2,

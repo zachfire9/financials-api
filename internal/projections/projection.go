@@ -187,31 +187,29 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 	for drawdownYear := 1; drawdownYear <= request.DrawdownYears; drawdownYear++ {
 		year := request.SavingYears + drawdownYear
 		priorBalances := append([]int64(nil), balances...)
-		withdrawalAllocations := allocateWithdrawal(annualWithdrawalCents, priorBalances)
+		growthCents := make([]int64, len(items))
+		availableBalances := make([]int64, len(items))
 		for index, item := range items {
 			drawdownReturnRate := item.AnnualReturnRateBasisPoints
 			if item.DrawdownAnnualReturnRateBasisPoints != nil {
 				drawdownReturnRate = *item.DrawdownAnnualReturnRateBasisPoints
 			}
-			growthCents := roundBasisPointGrowth(balances[index], drawdownReturnRate)
-			availableBalance := balances[index] + growthCents
-			if availableBalance < 0 {
-				availableBalance = 0
+			growthCents[index] = roundBasisPointGrowth(balances[index], drawdownReturnRate)
+			availableBalances[index] = balances[index] + growthCents[index]
+			if availableBalances[index] < 0 {
+				availableBalances[index] = 0
 			}
-			withdrawalCents := withdrawalAllocations[index]
-			unfundedWithdrawalCents := int64(0)
-			if withdrawalCents > availableBalance {
-				unfundedWithdrawalCents = withdrawalCents - availableBalance
-				withdrawalCents = availableBalance
-			}
-			currentBalance := availableBalance - withdrawalCents
+		}
+		withdrawals, unfundedWithdrawals := fundWithdrawal(annualWithdrawalCents, priorBalances, availableBalances)
+		for index := range items {
+			currentBalance := availableBalances[index] - withdrawals[index]
 			itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
 				Year:                    year,
 				Phase:                   PhaseDrawdown,
 				BalanceCents:            currentBalance,
-				WithdrawalCents:         withdrawalCents,
-				GrowthCents:             growthCents,
-				UnfundedWithdrawalCents: unfundedWithdrawalCents,
+				WithdrawalCents:         withdrawals[index],
+				GrowthCents:             growthCents[index],
+				UnfundedWithdrawalCents: unfundedWithdrawals[index],
 			})
 			balances[index] = currentBalance
 		}
@@ -359,6 +357,69 @@ func phaseForYear(year int, savingYears int) Phase {
 
 func usesPhaseProjection(request Request) bool {
 	return request.SavingYears != 0 || request.DrawdownYears != 0 || request.AnnualWithdrawalCents != 0 || request.AnnualWithdrawalInflationRateBasisPoints != 0
+}
+
+// fundWithdrawal splits one drawdown year's withdrawal across items.
+//
+// Each item first covers a share proportional to its start-of-year balance,
+// capped at what it has available after growth. Any shortfall is then taken
+// from items that still have money, proportionally to what they have left,
+// until it is covered or every item is empty. Only what remains uncovered is
+// reported as unfunded, attributed by the items' original shares (or evenly
+// when no item had a balance). For every year:
+// sum(withdrawals) + sum(unfunded) == withdrawalCents.
+func fundWithdrawal(withdrawalCents int64, priorBalances []int64, availableBalances []int64) ([]int64, []int64) {
+	withdrawals := make([]int64, len(availableBalances))
+	unfunded := make([]int64, len(availableBalances))
+	if withdrawalCents <= 0 || len(availableBalances) == 0 {
+		return withdrawals, unfunded
+	}
+
+	shares := allocateWithdrawal(withdrawalCents, priorBalances)
+	shortfallCents := withdrawalCents
+	for index, share := range shares {
+		withdrawals[index] = min(share, availableBalances[index])
+		shortfallCents -= withdrawals[index]
+	}
+
+	remaining := make([]int64, len(availableBalances))
+	for shortfallCents > 0 {
+		for index := range remaining {
+			remaining[index] = availableBalances[index] - withdrawals[index]
+		}
+		extra := allocateWithdrawal(shortfallCents, remaining)
+		takenCents := int64(0)
+		for index := range extra {
+			take := min(extra[index], remaining[index])
+			withdrawals[index] += take
+			takenCents += take
+		}
+		if takenCents == 0 {
+			break
+		}
+		shortfallCents -= takenCents
+	}
+
+	if shortfallCents > 0 {
+		weights := shares
+		if sumCents(shares) == 0 {
+			weights = make([]int64, len(shares))
+			for index := range weights {
+				weights[index] = 1
+			}
+		}
+		unfunded = allocateWithdrawal(shortfallCents, weights)
+	}
+
+	return withdrawals, unfunded
+}
+
+func sumCents(values []int64) int64 {
+	total := int64(0)
+	for _, value := range values {
+		total += value
+	}
+	return total
 }
 
 func allocateWithdrawal(withdrawalCents int64, priorBalances []int64) []int64 {
