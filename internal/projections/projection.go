@@ -2,6 +2,7 @@ package projections
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -14,6 +15,9 @@ const (
 	maximumAnnualReturnRateBasisPoints = 100000
 	basisPointsPerWhole                = 10000
 )
+
+// currencyCodePattern matches ISO 4217-style codes: exactly three uppercase letters.
+var currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 type Phase string
 
@@ -270,8 +274,8 @@ func validate(request Request) error {
 		if strings.TrimSpace(item.Currency) == "" {
 			problems = append(problems, fmt.Sprintf("items[%d].currency is required", index))
 		} else {
-			if item.Currency != strings.ToUpper(item.Currency) {
-				problems = append(problems, fmt.Sprintf("items[%d].currency must be uppercase ISO-style text", index))
+			if !currencyCodePattern.MatchString(item.Currency) {
+				problems = append(problems, fmt.Sprintf("items[%d].currency must be a 3-letter uppercase code such as USD", index))
 			}
 			if currency == "" {
 				currency = item.Currency

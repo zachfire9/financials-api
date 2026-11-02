@@ -2,9 +2,20 @@ package financialitems
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
+
+// currencyCodePattern matches ISO 4217-style codes: exactly three uppercase letters.
+// Browsers' Intl.NumberFormat throws on malformed codes, so anything else would
+// break currency formatting in the UI.
+var currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
+
+// IsValidCurrencyCode reports whether code is exactly three uppercase letters.
+func IsValidCurrencyCode(code string) bool {
+	return currencyCodePattern.MatchString(code)
+}
 
 const (
 	minimumAnnualReturnRateBasisPoints = -10000
@@ -87,9 +98,8 @@ func validateFinancialItemFields(name string, amountCents int64, currency string
 	}
 	if strings.TrimSpace(currency) == "" {
 		problems = append(problems, "currency is required")
-	}
-	if currency != strings.ToUpper(currency) {
-		problems = append(problems, "currency must be uppercase ISO-style text")
+	} else if !IsValidCurrencyCode(currency) {
+		problems = append(problems, "currency must be a 3-letter uppercase code such as USD")
 	}
 	if annualReturnRateBasisPoints < minimumAnnualReturnRateBasisPoints || annualReturnRateBasisPoints > maximumAnnualReturnRateBasisPoints {
 		problems = append(problems, fmt.Sprintf("annualReturnRateBasisPoints must be between %d and %d", minimumAnnualReturnRateBasisPoints, maximumAnnualReturnRateBasisPoints))
