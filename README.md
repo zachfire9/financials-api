@@ -80,7 +80,7 @@ For a deployed/static UI that keeps financial items in the browser instead of sa
 $env:FINANCIALS_STORAGE_DRIVER="ephemeral"; go run ./cmd/api
 ```
 
-`ephemeral` uses the same process-local memory repository as `memory`; it is only a clear runtime signal that the intended workflow is browser-owned import/export plus request-supplied projection items. Do not treat Lambda/process memory as a reliable browser session store.
+`ephemeral` is for the browser-owned workflow: the UI keeps items in the browser and sends them with every projection request. In this mode the API serves only `GET /health` and `POST /projections`; the financial item and backup routes return `404`, and a projection request without `items` returns `400` instead of reading server-side storage. This keeps Lambda/process memory from acting as an unreliable, per-instance session store. Use `memory` or `json` for the full CRUD API locally.
 
 ## AWS serverless backend
 
