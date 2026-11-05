@@ -1,19 +1,29 @@
 # Financials API
 
-A local-first personal financial planning API, rebuilt from the old prototype as a Go service.
-
-The first implementation phase focuses on the API skeleton, generic financial item tracking, and deterministic projection workflows. Drawdown projection features will build on the current accumulation-only projection contract once the next backend decisions are pinned.
+A local-first personal financial planning API, rebuilt from the old prototype as a Go service. It powers the Financials Planner UI ([financials-ui](https://github.com/zachfire9/financials-ui)), which answers: how long will my money actually last in retirement?
 
 ## Current status
 
-- Runtime: Go HTTP API
-- Current branch focus: deployed access control before real data
+- Runtime: Go HTTP API, deployed on AWS Lambda (arm64, `provided.al2023`) behind an API Gateway HTTP API in `ephemeral` mode
 - Implemented endpoints: `GET /health`, `/financial-items` create/list/read/update/delete behavior, `GET`/`POST /financial-items/backup`, and accumulation/drawdown `POST /projections`
 - Implemented domain pieces: financial item request/response models, validation, deterministic fake fixtures, repository behavior tests, projection calculation logic, drawdown-capable projection engine models, inflation-adjusted drawdown withdrawals, repository-backed per-item drawdown return wiring, per-item contribution inflation flags, JSON backup replacement imports, request-supplied projection item support for browser-owned sessions, and projection/drawdown UI integration tracking
 - Implemented local storage options: process-local memory, explicit ephemeral/non-durable memory, and gitignored JSON file storage
 - Implemented deploy-readiness option: placeholder-configured CORS allowed origins and optional shared-token access control for static hosting
-- Next planned area: stronger Cognito/OIDC/Lambda-authorizer identity or cloud persistence only if needed
+- Not planned unless needed: stronger Cognito/OIDC/Lambda-authorizer identity or cloud persistence
 - Runtime/deployment specifics: represented with placeholders only; real local values belong in ignored `.env` files
+
+## Repository layout
+
+- `cmd/api`: local `net/http` server
+- `cmd/lambda`: Lambda entry point
+- `internal/httpapi`: HTTP handler, routing, CORS, access token gate, error responses
+- `internal/financialitems`: item model, validation, memory and JSON file repositories, backup import/export
+- `internal/projections`: projection engine (accumulation and drawdown)
+- `internal/config`: environment and `.env` loading
+- `internal/app`: wires config, storage and handler together
+- `internal/lambdahttp`: API Gateway HTTP API event adapter for the handler
+- `infra/iam/`: IAM policies for the GitHub Actions deploy role (see [infra/iam/README.md](infra/iam/README.md))
+- `template.yaml`, `Makefile`: SAM template and Lambda build target
 
 ## Planning documents
 
@@ -41,17 +51,21 @@ Configuration precedence:
 2. Local `.env`
 3. Built-in defaults
 
+A variable set in the process environment always wins over `.env`, even when it's empty; an empty value then means "use the built-in default".
+
 Supported config values:
 
 - `FINANCIALS_API_ADDR`: Go `http.Server` bind address, default `:8080`
 - `FINANCIALS_STORAGE_DRIVER`: `memory`, `ephemeral`, or `json`, default `memory`
 - `FINANCIALS_STORAGE_PATH`: required when `FINANCIALS_STORAGE_DRIVER=json`, for example `./data/financial-items.json`
 - `FINANCIALS_ALLOWED_ORIGINS`: optional comma-separated browser origins allowed to call the API directly, blank by default for the local Vite proxy workflow
+- `FINANCIALS_ACCESS_TOKEN`: optional shared token; when set, non-health requests must send it in `X-Financials-Access-Token` (see below)
 
-Run tests:
+Run checks:
 
 ```powershell
-go test ./...
+go vet ./...
+go test -race ./...
 ```
 
 Start the API locally:
@@ -92,6 +106,7 @@ Committed AWS files are public-safe placeholders only:
 
 - `template.yaml`: SAM template for HTTP API + Lambda using `FINANCIALS_STORAGE_DRIVER=ephemeral` by default.
 - `Makefile`: SAM makefile target that builds the Lambda custom-runtime `bootstrap` for `provided.al2023`.
+- `infra/iam/`: trust and permission policies for the GitHub Actions deploy role, with account-specific IDs as placeholders. The role is managed by hand in AWS; change these files in a PR, then apply them.
 
 Build the Lambda artifact locally:
 
@@ -141,7 +156,7 @@ The static UI bundles the token into its JavaScript, so treat it as readable by 
 
 ### Cost guardrails
 
-- **API Gateway throttling:** `FinancialsThrottlingRateLimit` (default `2` requests/second) and `FinancialsThrottlingBurstLimit` (default `5`) apply to every route. Requests above the limit get `429 Too Many Requests` from API Gateway and never invoke Lambda. Throttles are best-effort targets, not exact ceilings.
+- **API Gateway throttling:** `FinancialsThrottlingRateLimit` (default `2` requests/second) and `FinancialsThrottlingBurstLimit` (default `5`) apply to every route. The deploy workflow sets them from the `FINANCIALS_THROTTLING_RATE_LIMIT` / `FINANCIALS_THROTTLING_BURST_LIMIT` repo variables. Requests above the limit get `429 Too Many Requests` from API Gateway and never invoke Lambda. Throttles are best-effort targets, not exact ceilings.
 - **Lambda reserved concurrency (optional):** set `FinancialsReservedConcurrency` (for example `2`) as a backstop. Leave it blank if the account's Lambda concurrency quota is low, because AWS requires at least 100 unreserved executions to remain.
 - **AWS Budgets alerts:** configured at the account level (outside this repo) for actual and forecasted monthly spend. Budgets alert only; they do not stop spending, and billing data lags actual usage.
 
@@ -215,6 +230,19 @@ Invoke-RestMethod http://localhost:8080/financial-items/item_000001 -Method Dele
 
 Validation failures return `400` with an error message. Missing item IDs return `404`.
 
+## Errors
+
+Every error response is JSON: `{"error":"<message>"}`.
+
+| Status | When |
+|--------|------|
+| `400` | Validation failure, unknown JSON field, malformed JSON, or extra data after the JSON body |
+| `401` | `FINANCIALS_ACCESS_TOKEN` is set and the request's `X-Financials-Access-Token` is missing or wrong |
+| `404` | Unknown route, or unknown item ID |
+| `405` | Known route, wrong method (the `Allow` header lists the right ones) |
+| `413` | Request body over 1 MiB |
+| `500` | Server error. The message is always `internal error`; details go to the server log only |
+
 ## JSON backup export/import
 
 `GET /financial-items/backup` exports all saved financial items as a public JSON shape with `schemaVersion`, `exportedAt`, and `items`. Real backup files can contain private financial data; keep them local and out of git.
@@ -222,7 +250,7 @@ Validation failures return `400` with an error message. Missing item IDs return 
 Export an example backup:
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/financial-items/backup | ConvertTo-Json -Depth 10 | Set-Content .\\financials-backup.example.local.json
+Invoke-RestMethod http://localhost:8080/financial-items/backup | ConvertTo-Json -Depth 10 | Set-Content .\financials-backup.example.local.json
 ```
 
 Import replaces the current saved financial items with the validated backup payload. The import preserves explicit item IDs, sort order, timestamps, and optional drawdown return assumptions when the payload is valid.
@@ -235,7 +263,7 @@ Restore checklist:
 4. List financial items and recalculate projections.
 
 ```powershell
-$backup = Get-Content .\\financials-backup.example.local.json -Raw
+$backup = Get-Content .\financials-backup.example.local.json -Raw
 Invoke-RestMethod http://localhost:8080/financial-items/backup -Method Post -ContentType 'application/json' -Body $backup
 ```
 
@@ -335,4 +363,4 @@ This repo is public, so it must not contain:
 - Local database paths, backup paths, or user-specific service names
 - Environment-specific production configuration
 
-Use committed examples with placeholders only, and keep real runtime values in ignored local files such as `.env` when implementation begins.
+Use committed examples with placeholders only, and keep real runtime values in ignored local files such as `.env`.
