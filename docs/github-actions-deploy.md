@@ -50,14 +50,7 @@ Use a trust policy scoped to this repository and `master` branch. Replace placeh
 }
 ```
 
-The role needs enough permissions to run `sam deploy` for the existing API stack and read the deployed stack output for the health smoke test. Scope the policy to this stack/resources where practical:
-
-- CloudFormation describe/create/update changesets and stacks for the API stack
-- Lambda update/create permissions for the API function
-- API Gateway HTTP API permissions used by the SAM stack
-- IAM role create/update/pass permissions for the Lambda execution role managed by the stack
-- S3 read/write permissions for the SAM deployment artifact bucket
-- CloudWatch Logs permissions if the stack manages log groups
+The role needs enough permissions to run `sam deploy` for the existing API stack and read the deployed stack output for the health smoke test. The live trust policy and permission policies are kept as templates in [`infra/iam/`](../infra/iam/README.md). Change them there in a PR, then apply them.
 
 ## Workflow behavior
 
