@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudFormationGetTemplateSummaryForApi",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:GetTemplateSummary"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:*:*:stack/financials-api/*",
+        "arn:aws:cloudformation:*:*:stack/aws-sam-cli-managed-default/*"
+      ]
+    }
+  ]
+}

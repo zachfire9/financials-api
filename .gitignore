@@ -14,3 +14,8 @@ samconfig.toml
 .DS_Store
 .vscode/
 .idea/
+
+# Filled-in IAM policies (templates live in infra/iam/)
+/*-policy*.json
+/*-trust*.json
+/live-*-policies.txt
