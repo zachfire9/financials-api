@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -850,5 +851,99 @@ func TestStatelessProjectionsOnlyServesOnlyHealthAndProjections(t *testing.T) {
 	}
 	if !strings.Contains(withoutItems.Body.String(), "items are required") {
 		t.Fatalf("expected items required error, got %s", withoutItems.Body.String())
+	}
+}
+
+func decodeErrorResponse(t *testing.T, recorder *httptest.ResponseRecorder) errorResponse {
+	t.Helper()
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Fatalf("expected JSON content type, got %q", contentType)
+	}
+	var response errorResponse
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	return response
+}
+
+func TestRoutingErrorsAreJSON(t *testing.T) {
+	notFound := httptest.NewRecorder()
+	NewHandler().ServeHTTP(notFound, httptest.NewRequest(http.MethodGet, "/does-not-exist", nil))
+	if notFound.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, notFound.Code)
+	}
+	if response := decodeErrorResponse(t, notFound); response.Error != "not found" {
+		t.Fatalf("expected not found error, got %q", response.Error)
+	}
+
+	wrongMethod := httptest.NewRecorder()
+	NewHandler().ServeHTTP(wrongMethod, httptest.NewRequest(http.MethodDelete, "/health", nil))
+	if wrongMethod.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, wrongMethod.Code)
+	}
+	if allow := wrongMethod.Header().Get("Allow"); !strings.Contains(allow, http.MethodGet) {
+		t.Fatalf("expected Allow header to list GET, got %q", allow)
+	}
+	if response := decodeErrorResponse(t, wrongMethod); response.Error != "method not allowed" {
+		t.Fatalf("expected method not allowed error, got %q", response.Error)
+	}
+}
+
+type failingRepository struct {
+	financialitems.Repository
+}
+
+func (failingRepository) List(context.Context) ([]financialitems.FinancialItem, error) {
+	return nil, errors.New("open /secret/path/financial-items.json: permission denied")
+}
+
+func TestServerErrorsHideInternalDetails(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	NewHandlerWithRepository(failingRepository{}).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/financial-items", nil))
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, recorder.Code)
+	}
+	if response := decodeErrorResponse(t, recorder); response.Error != "internal error" {
+		t.Fatalf("expected generic internal error, got %q", response.Error)
+	}
+}
+
+func TestRequestBodyRejectsTrailingJSON(t *testing.T) {
+	body := `{"name":"Example brokerage","amountCents":1250000,"currency":"USD","annualReturnRateBasisPoints":700,"annualContributionCents":300000,"sortOrder":1}{"name":"extra"}`
+	recorder := httptest.NewRecorder()
+	NewHandler().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/financial-items", strings.NewReader(body)))
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+	if response := decodeErrorResponse(t, recorder); response.Error != errTrailingJSON.Error() {
+		t.Fatalf("expected trailing JSON error, got %q", response.Error)
+	}
+}
+
+func TestRequestBodyRejectsOversizedBodies(t *testing.T) {
+	body := `{"name":"` + strings.Repeat("a", maxRequestBodyBytes) + `"}`
+	recorder := httptest.NewRecorder()
+	NewHandler().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/financial-items", strings.NewReader(body)))
+
+	if recorder.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected status %d, got %d", http.StatusRequestEntityTooLarge, recorder.Code)
+	}
+	decodeErrorResponse(t, recorder)
+}
+
+func TestAccessControlRejectsWrongToken(t *testing.T) {
+	handler := NewHandlerWithRepositoryAndConfig(financialitems.NewInMemoryRepository(), HandlerConfig{
+		AccessControl: AccessControlConfig{Token: "example-token"},
+	})
+	for _, token := range []string{"example-toke", "example-token-extra", "EXAMPLE-TOKEN"} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, "/financial-items", nil)
+		request.Header.Set(accessTokenHeader, token)
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("token %q: expected status %d, got %d", token, http.StatusUnauthorized, recorder.Code)
+		}
 	}
 }

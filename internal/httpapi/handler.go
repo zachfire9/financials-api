@@ -1,8 +1,12 @@
 package httpapi
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -11,6 +15,10 @@ import (
 )
 
 const accessTokenHeader = "X-Financials-Access-Token"
+
+// maxRequestBodyBytes caps JSON request bodies. A backup with thousands of
+// accounts is still well under this.
+const maxRequestBodyBytes = 1 << 20
 
 // NewHandler builds the HTTP handler tree for the API.
 //
@@ -59,7 +67,7 @@ func NewHandlerWithRepositoryAndConfig(repository financialitems.Repository, han
 	mux.HandleFunc("GET /health", api.handleHealth)
 	mux.HandleFunc("POST /projections", api.handleProjectionsCreate)
 	if handlerConfig.StatelessProjectionsOnly {
-		return withCORS(withAccessControl(mux, handlerConfig.AccessControl), handlerConfig.CORS)
+		return withCORS(withAccessControl(withJSONRoutingErrors(mux), handlerConfig.AccessControl), handlerConfig.CORS)
 	}
 
 	mux.HandleFunc("GET /financial-items", api.handleFinancialItemsList)
@@ -69,7 +77,43 @@ func NewHandlerWithRepositoryAndConfig(repository financialitems.Repository, han
 	mux.HandleFunc("DELETE /financial-items/{id}", api.handleFinancialItemsDelete)
 	mux.HandleFunc("GET /financial-items/backup", api.handleFinancialItemsBackupExport)
 	mux.HandleFunc("POST /financial-items/backup", api.handleFinancialItemsBackupImport)
-	return withCORS(withAccessControl(mux, handlerConfig.AccessControl), handlerConfig.CORS)
+	return withCORS(withAccessControl(withJSONRoutingErrors(mux), handlerConfig.AccessControl), handlerConfig.CORS)
+}
+
+// withJSONRoutingErrors makes the mux's own 404 and 405 responses JSON, like
+// every other error the API returns. Matched routes are served unchanged.
+func withJSONRoutingErrors(mux *http.ServeMux) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, pattern := mux.Handler(r); pattern != "" {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		mux.ServeHTTP(&jsonErrorWriter{ResponseWriter: w}, r)
+	})
+}
+
+// jsonErrorWriter replaces a plain-text error body (from http.Error) with a
+// JSON error body. Non-error responses such as path-cleaning redirects pass through.
+type jsonErrorWriter struct {
+	http.ResponseWriter
+	replaced bool
+}
+
+func (w *jsonErrorWriter) WriteHeader(statusCode int) {
+	if statusCode < http.StatusBadRequest {
+		w.ResponseWriter.WriteHeader(statusCode)
+		return
+	}
+	w.replaced = true
+	w.Header().Del("X-Content-Type-Options")
+	writeJSON(w.ResponseWriter, statusCode, errorResponse{Error: strings.ToLower(http.StatusText(statusCode))})
+}
+
+func (w *jsonErrorWriter) Write(body []byte) (int, error) {
+	if w.replaced {
+		return len(body), nil
+	}
+	return w.ResponseWriter.Write(body)
 }
 
 func withCORS(next http.Handler, config CORSConfig) http.Handler {
@@ -108,7 +152,8 @@ func withAccessControl(next http.Handler, config AccessControlConfig) http.Handl
 			next.ServeHTTP(w, r)
 			return
 		}
-		if r.Header.Get(accessTokenHeader) != expectedToken {
+		providedToken := r.Header.Get(accessTokenHeader)
+		if subtle.ConstantTimeCompare([]byte(providedToken), []byte(expectedToken)) != 1 {
 			writeError(w, http.StatusUnauthorized, errors.New("missing or invalid access token"))
 			return
 		}
@@ -145,8 +190,8 @@ func (api *apiHandler) handleFinancialItemsList(w http.ResponseWriter, r *http.R
 
 func (api *apiHandler) handleFinancialItemsCreate(w http.ResponseWriter, r *http.Request) {
 	var request financialitems.CreateFinancialItemRequest
-	if err := decodeJSONBody(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if err := decodeJSONBody(w, r, &request); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 
@@ -171,8 +216,8 @@ func (api *apiHandler) handleFinancialItemsGet(w http.ResponseWriter, r *http.Re
 
 func (api *apiHandler) handleFinancialItemsUpdate(w http.ResponseWriter, r *http.Request) {
 	var request financialitems.UpdateFinancialItemRequest
-	if err := decodeJSONBody(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if err := decodeJSONBody(w, r, &request); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 
@@ -205,8 +250,8 @@ func (api *apiHandler) handleFinancialItemsBackupExport(w http.ResponseWriter, r
 
 func (api *apiHandler) handleFinancialItemsBackupImport(w http.ResponseWriter, r *http.Request) {
 	var backup financialitems.Backup
-	if err := decodeJSONBody(r, &backup); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if err := decodeJSONBody(w, r, &backup); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 
@@ -220,8 +265,8 @@ func (api *apiHandler) handleFinancialItemsBackupImport(w http.ResponseWriter, r
 
 func (api *apiHandler) handleProjectionsCreate(w http.ResponseWriter, r *http.Request) {
 	var request projections.Request
-	if err := decodeJSONBody(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if err := decodeJSONBody(w, r, &request); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 
@@ -261,10 +306,34 @@ func projectionInputsFromFinancialItems(items []financialitems.FinancialItem) []
 	return inputs
 }
 
-func decodeJSONBody(r *http.Request, destination any) error {
-	decoder := json.NewDecoder(r.Body)
+// errTrailingJSON is returned when a request body has data after its JSON value.
+var errTrailingJSON = errors.New("request body must contain a single JSON value")
+
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, destination any) error {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBodyBytes))
 	decoder.DisallowUnknownFields()
-	return decoder.Decode(destination)
+	if err := decoder.Decode(destination); err != nil {
+		return err
+	}
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); err != io.EOF {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			return err
+		}
+		return errTrailingJSON
+	}
+	return nil
+}
+
+// writeDecodeError reports a request body that couldn't be decoded.
+func writeDecodeError(w http.ResponseWriter, err error) {
+	var maxBytesError *http.MaxBytesError
+	if errors.As(err, &maxBytesError) {
+		writeError(w, http.StatusRequestEntityTooLarge, fmt.Errorf("request body must be %d bytes or less", maxBytesError.Limit))
+		return
+	}
+	writeError(w, http.StatusBadRequest, err)
 }
 
 func writeRepositoryError(w http.ResponseWriter, err error) {
@@ -288,8 +357,15 @@ func writeProjectionError(w http.ResponseWriter, err error) {
 	writeError(w, http.StatusInternalServerError, err)
 }
 
+// writeError writes a JSON error. Server errors are logged and replaced with a
+// generic message so internal details (file paths, wrapped errors) don't reach clients.
 func writeError(w http.ResponseWriter, statusCode int, err error) {
-	writeJSON(w, statusCode, errorResponse{Error: err.Error()})
+	message := err.Error()
+	if statusCode >= http.StatusInternalServerError {
+		log.Printf("internal error (%d): %v", statusCode, err)
+		message = "internal error"
+	}
+	writeJSON(w, statusCode, errorResponse{Error: message})
 }
 
 func writeJSON(w http.ResponseWriter, statusCode int, body any) {

@@ -52,8 +52,14 @@ func Load(envFilePath string) (Config, error) {
 	return cfg, nil
 }
 
+// valueFor reads a setting from the process environment, then the .env file,
+// then the fallback. A variable that is set in the environment always wins over
+// .env, even when empty; an empty value then means "use the default".
 func valueFor(key string, envFileValues map[string]string, fallback string) string {
-	if value := os.Getenv(key); value != "" {
+	if value, ok := os.LookupEnv(key); ok {
+		if value == "" {
+			return fallback
+		}
 		return value
 	}
 	if value, ok := envFileValues[key]; ok {
