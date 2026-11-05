@@ -65,11 +65,11 @@ On `push` to `master`, and on manual `workflow_dispatch`, the workflow runs thre
 
 1. `Test API`
    - Checks out the repo.
-   - Sets up Go 1.22.
+   - Sets up the Go version from `go.mod`.
    - Runs `go test ./...`.
 2. `Build API artifact`
    - Runs after tests pass.
-   - Checks out the repo and sets up Go 1.22.
+   - Checks out the repo and sets up the Go version from `go.mod`.
    - Installs the AWS SAM CLI.
    - Runs `sam build`.
    - Uploads `.aws-sam/build/` as the `financials-api-sam-build` artifact.

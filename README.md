@@ -25,7 +25,7 @@ The first implementation phase focuses on the API skeleton, generic financial it
 
 Requirements:
 
-- Go 1.22+
+- Go 1.27+ (the version in `go.mod`; an older Go downloads it automatically)
 
 Local config:
 
