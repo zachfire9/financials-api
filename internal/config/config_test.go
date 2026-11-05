@@ -36,12 +36,21 @@ func TestLoadUsesDefaultsWhenEnvFileAndProcessEnvAreAbsent(t *testing.T) {
 	}
 }
 
+// unsetEnv removes a variable for the duration of the test and restores it afterwards.
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	t.Setenv(key, "")
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("unset %s: %v", key, err)
+	}
+}
+
 func TestLoadReadsEnvFileWhenProcessEnvIsAbsent(t *testing.T) {
-	t.Setenv("FINANCIALS_API_ADDR", "")
-	t.Setenv("FINANCIALS_STORAGE_DRIVER", "")
-	t.Setenv("FINANCIALS_STORAGE_PATH", "")
-	t.Setenv("FINANCIALS_ALLOWED_ORIGINS", "")
-	t.Setenv("FINANCIALS_ACCESS_TOKEN", "")
+	unsetEnv(t, "FINANCIALS_API_ADDR")
+	unsetEnv(t, "FINANCIALS_STORAGE_DRIVER")
+	unsetEnv(t, "FINANCIALS_STORAGE_PATH")
+	unsetEnv(t, "FINANCIALS_ALLOWED_ORIGINS")
+	unsetEnv(t, "FINANCIALS_ACCESS_TOKEN")
 
 	envPath := filepath.Join(t.TempDir(), ".env")
 	if err := os.WriteFile(envPath, []byte("FINANCIALS_API_ADDR=:9090\nFINANCIALS_STORAGE_DRIVER=json\nFINANCIALS_STORAGE_PATH=./local-data/financial-items.json\nFINANCIALS_ALLOWED_ORIGINS=http://localhost:5173, https://example-amplify-app.example.com\nFINANCIALS_ACCESS_TOKEN=example-local-token\n"), 0o600); err != nil {
@@ -132,5 +141,26 @@ func TestLoadRequiresStoragePathForJSONDriver(t *testing.T) {
 	_, err := Load(filepath.Join(t.TempDir(), ".env"))
 	if err == nil {
 		t.Fatal("expected JSON storage path validation error")
+	}
+}
+
+func TestLoadLetsEmptyProcessEnvOverrideEnvFileWithDefault(t *testing.T) {
+	unsetEnv(t, "FINANCIALS_API_ADDR")
+	unsetEnv(t, "FINANCIALS_STORAGE_DRIVER")
+	unsetEnv(t, "FINANCIALS_STORAGE_PATH")
+	unsetEnv(t, "FINANCIALS_ALLOWED_ORIGINS")
+	t.Setenv("FINANCIALS_ACCESS_TOKEN", "")
+
+	envPath := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(envPath, []byte("FINANCIALS_ACCESS_TOKEN=example-local-token\n"), 0o600); err != nil {
+		t.Fatalf("write env file: %v", err)
+	}
+
+	cfg, err := Load(envPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.AccessToken != "" {
+		t.Fatalf("expected empty process env to clear the .env access token, got %q", cfg.AccessToken)
 	}
 }

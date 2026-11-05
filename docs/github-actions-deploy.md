@@ -10,11 +10,11 @@ Add these repository settings in GitHub before enabling the workflow.
 
 ### Secrets
 
-- `AWS_DEPLOY_ROLE_ARN`: ARN of the AWS IAM role that GitHub Actions can assume for this repo.
 - `FINANCIALS_ACCESS_TOKEN`: private shared token passed to the SAM stack as `FinancialsAccessToken`.
 
 ### Variables
 
+- `AWS_DEPLOY_ROLE_ARN`: ARN of the AWS IAM role that GitHub Actions can assume for this repo. Role ARNs are identifiers, not credentials, so this is a variable (same as financials-ui). The workflow still falls back to a secret with the same name if the variable isn't set.
 - `AWS_REGION`: AWS region for the API stack, for example `us-east-1`.
 - `API_STACK_NAME`: CloudFormation stack name, for example `financials-api`.
 - `FINANCIALS_STORAGE_DRIVER`: normally `ephemeral` for browser-owned sessions.

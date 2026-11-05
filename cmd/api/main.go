@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/zachfire9/financials-api/internal/app"
 	"github.com/zachfire9/financials-api/internal/config"
@@ -20,8 +21,9 @@ func main() {
 	}
 
 	server := &http.Server{
-		Addr:    cfg.APIAddr,
-		Handler: handler,
+		Addr:              cfg.APIAddr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	log.Printf("financials-api listening on %s with %s storage", cfg.APIAddr, cfg.StorageDriver)
