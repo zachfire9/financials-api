@@ -7,12 +7,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // JSONFileRepository stores financial items in a local JSON file for low-friction local development.
+//
+// Every change is applied and saved while holding writeMu, so concurrent requests
+// cannot write their snapshots out of order and lose each other's changes. Saves
+// write to a temporary file and rename it over the original, so a crash mid-save
+// leaves the previous file intact instead of a truncated one.
 type JSONFileRepository struct {
 	path     string
 	inMemory *InMemoryRepository
+	writeMu  sync.Mutex
 }
 
 type jsonFileRepositoryState struct {
@@ -37,6 +44,9 @@ func NewJSONFileRepository(path string) (*JSONFileRepository, error) {
 }
 
 func (repository *JSONFileRepository) Create(ctx context.Context, request CreateFinancialItemRequest) (FinancialItem, error) {
+	repository.writeMu.Lock()
+	defer repository.writeMu.Unlock()
+
 	item, err := repository.inMemory.Create(ctx, request)
 	if err != nil {
 		return FinancialItem{}, err
@@ -56,6 +66,9 @@ func (repository *JSONFileRepository) Get(ctx context.Context, id string) (Finan
 }
 
 func (repository *JSONFileRepository) Update(ctx context.Context, id string, request UpdateFinancialItemRequest) (FinancialItem, error) {
+	repository.writeMu.Lock()
+	defer repository.writeMu.Unlock()
+
 	item, err := repository.inMemory.Update(ctx, id, request)
 	if err != nil {
 		return FinancialItem{}, err
@@ -67,6 +80,9 @@ func (repository *JSONFileRepository) Update(ctx context.Context, id string, req
 }
 
 func (repository *JSONFileRepository) Delete(ctx context.Context, id string) error {
+	repository.writeMu.Lock()
+	defer repository.writeMu.Unlock()
+
 	if err := repository.inMemory.Delete(ctx, id); err != nil {
 		return err
 	}
@@ -78,6 +94,9 @@ func (repository *JSONFileRepository) ExportBackup(ctx context.Context) (Backup,
 }
 
 func (repository *JSONFileRepository) ImportBackup(ctx context.Context, backup Backup) ([]FinancialItem, error) {
+	repository.writeMu.Lock()
+	defer repository.writeMu.Unlock()
+
 	items, err := repository.inMemory.ImportBackup(ctx, backup)
 	if err != nil {
 		return nil, err
@@ -135,8 +154,36 @@ func (repository *JSONFileRepository) save() error {
 	if err := os.MkdirAll(filepath.Dir(repository.path), 0o700); err != nil {
 		return fmt.Errorf("create financial items JSON directory: %w", err)
 	}
-	if err := os.WriteFile(repository.path, contents, 0o600); err != nil {
+	if err := writeFileAtomically(repository.path, contents); err != nil {
 		return fmt.Errorf("write financial items JSON file: %w", err)
 	}
 	return nil
+}
+
+// writeFileAtomically writes contents to a temporary file in the same directory
+// and renames it over path, so readers never see a partially written file.
+// os.CreateTemp creates the file with 0600 permissions, which the rename keeps.
+func writeFileAtomically(path string, contents []byte) (err error) {
+	temp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	defer func() {
+		if err != nil {
+			_ = temp.Close()
+			_ = os.Remove(tempPath)
+		}
+	}()
+
+	if _, err = temp.Write(contents); err != nil {
+		return err
+	}
+	if err = temp.Sync(); err != nil {
+		return err
+	}
+	if err = temp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tempPath, path)
 }

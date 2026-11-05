@@ -3,7 +3,10 @@ package financialitems
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
 )
 
@@ -84,5 +87,80 @@ func TestJSONFileRepositoryUpdatesAndDeletesPersistedFinancialItems(t *testing.T
 	_, err = finalRepository.Get(context.Background(), created.ID)
 	if !errors.Is(err, ErrFinancialItemNotFound) {
 		t.Fatalf("expected deleted item to stay deleted, got %v", err)
+	}
+}
+
+func TestJSONFileRepositoryKeepsEveryConcurrentCreate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "financial-items.json")
+	repository, err := NewJSONFileRepository(path)
+	if err != nil {
+		t.Fatalf("create repository: %v", err)
+	}
+
+	const creates = 50
+	var wg sync.WaitGroup
+	errs := make(chan error, creates)
+	for i := 0; i < creates; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := repository.Create(context.Background(), FakeCreateFinancialItemRequest()); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("create financial item: %v", err)
+	}
+
+	reloaded, err := NewJSONFileRepository(path)
+	if err != nil {
+		t.Fatalf("reload repository: %v", err)
+	}
+	items, err := reloaded.List(context.Background())
+	if err != nil {
+		t.Fatalf("list reloaded financial items: %v", err)
+	}
+	if len(items) != creates {
+		t.Fatalf("expected %d items in the saved file, got %d", creates, len(items))
+	}
+}
+
+func TestJSONFileRepositoryLeavesNoTemporaryFiles(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "financial-items.json")
+	repository, err := NewJSONFileRepository(path)
+	if err != nil {
+		t.Fatalf("create repository: %v", err)
+	}
+	created, err := repository.Create(context.Background(), FakeCreateFinancialItemRequest())
+	if err != nil {
+		t.Fatalf("create financial item: %v", err)
+	}
+	if err := repository.Delete(context.Background(), created.ID); err != nil {
+		t.Fatalf("delete financial item: %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read directory: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "financial-items.json" {
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		t.Fatalf("expected only financial-items.json, got %v", names)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat saved file: %v", err)
+		}
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Fatalf("expected saved file permissions 0600, got %o", perm)
+		}
 	}
 }
