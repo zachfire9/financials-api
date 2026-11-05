@@ -38,13 +38,39 @@
       "Resource": "arn:aws:lambda:*:*:function:financials-api-*"
     },
     {
-      "Sid": "ApiGatewayDeployFinancialsApi",
+      "Sid": "ManageFinancialsHttpApi",
       "Effect": "Allow",
       "Action": [
-        "apigateway:*",
-        "apigatewayv2:*"
+        "apigateway:GET",
+        "apigateway:POST",
+        "apigateway:PUT",
+        "apigateway:PATCH",
+        "apigateway:DELETE"
       ],
-      "Resource": "*"
+      "Resource": [
+        "arn:aws:apigateway:us-east-1::/apis/<api-id>",
+        "arn:aws:apigateway:us-east-1::/apis/<api-id>/*"
+      ]
+    },
+    {
+      "Sid": "ListAndCreateHttpApis",
+      "Effect": "Allow",
+      "Action": [
+        "apigateway:GET",
+        "apigateway:POST"
+      ],
+      "Resource": "arn:aws:apigateway:us-east-1::/apis"
+    },
+    {
+      "Sid": "TagApiGatewayResources",
+      "Effect": "Allow",
+      "Action": [
+        "apigateway:GET",
+        "apigateway:POST",
+        "apigateway:PUT",
+        "apigateway:DELETE"
+      ],
+      "Resource": "arn:aws:apigateway:us-east-1::/tags/*"
     },
     {
       "Sid": "IamForFinancialsApiStackRoles",
@@ -66,16 +92,23 @@
       "Resource": "arn:aws:iam::*:role/financials-api-*"
     },
     {
-      "Sid": "SamArtifactBuckets",
+      "Sid": "SamArtifactBucketObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*"
+    },
+    {
+      "Sid": "SamArtifactBucket",
       "Effect": "Allow",
       "Action": [
         "s3:CreateBucket",
         "s3:GetBucketLocation",
-        "s3:GetObject",
-        "s3:ListBucket",
-        "s3:PutObject"
+        "s3:ListBucket"
       ],
-      "Resource": "*"
+      "Resource": "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*"
     },
     {
       "Sid": "CloudWatchLogsForFinancialsApi",
