@@ -11,25 +11,32 @@ The IAM role GitHub Actions uses to deploy this repo is managed by hand in AWS, 
 
 ## Placeholders
 
-Only the trust policy has one: replace `<aws-account-id>` (`aws sts get-caller-identity --query Account --output text`). The permission policies use wildcards for the region and account.
+Fill these in a copy before applying:
+
+| Placeholder | File | Where to find it |
+|-------------|------|------------------|
+| `<aws-account-id>` | `github-oidc-trust.json` | `aws sts get-caller-identity --query Account --output text` |
+| `<api-id>` | `github-deploy-policy.json` | The subdomain of the deployed API URL (`https://<api-id>.execute-api.us-east-1.amazonaws.com`), or the `FinancialsHttpApi` resource in the `financials-api` stack |
+
+The other two policies have no placeholders.
 
 ## Applying
 
-Save a filled-in copy of the trust policy in the repo root. `/*-policy*.json` and `/*-trust*.json` are gitignored there, so it can't be committed by accident.
+Save filled-in copies of the trust policy and the deploy policy in the repo root. `/*-policy*.json` and `/*-trust*.json` are gitignored there, so it can't be committed by accident.
 
 ```powershell
 $r = "financials-api-github-deploy-role"
 aws iam update-assume-role-policy --role-name $r --policy-document file://github-oidc-trust.filled.json
-aws iam put-role-policy --role-name $r --policy-name financials-api-github-deploy-policy --policy-document file://infra/iam/github-deploy-policy.json
+aws iam put-role-policy --role-name $r --policy-name financials-api-github-deploy-policy --policy-document file://github-deploy-policy.filled.json
 aws iam put-role-policy --role-name $r --policy-name financials-api-sam-managed-stack-policy --policy-document file://infra/iam/sam-managed-stack-policy.json
 aws iam put-role-policy --role-name $r --policy-name financials-api-cloudformation-template-summary-policy --policy-document file://infra/iam/cloudformation-template-summary-policy.json
 ```
 
 Then run the deploy workflow once to confirm the role still works.
 
-## Known gaps
+## Notes
 
-Two statements in `github-deploy-policy.json` are broader than they need to be:
-
-- `SamArtifactBuckets` allows reading and writing objects in **any** S3 bucket. It only needs SAM's managed artifact bucket (`aws-sam-cli-managed-default-samclisourcebucket-*`).
-- `ApiGatewayDeployFinancialsApi` allows **all** API Gateway actions on all APIs. It only needs the API created by this stack.
+- S3 access is limited to SAM's managed artifact bucket (`aws-sam-cli-managed-default-samclisourcebucket-*`).
+- API Gateway access is limited to this stack's HTTP API and everything under it, plus listing/creating APIs and tagging. API Gateway permissions are HTTP methods on resource paths, not named actions.
+- The API ID is pinned. If CloudFormation ever replaces the API, update `<api-id>` (the UI's `VITE_FINANCIALS_API_BASE_URL` changes too).
+- Lambda, IAM and CloudWatch Logs permissions are limited to `financials-api-*` names.
