@@ -370,7 +370,7 @@ How it works:
 - After the last retirement, the full `annualWithdrawalCents` is withdrawn for `drawdownYears`, with phase `drawdown`.
 - Both withdrawal amounts are in today's dollars and grow by `annualWithdrawalInflationRateBasisPoints` every year from year 1.
 - The response adds `transitionYears`: `years` = `savingYears` (to the first retirement) + `transitionYears` + `drawdownYears`.
-- With `people`, the request's `savingYears` must be `0`. `ownerId` must match a person, and `gapAnnualWithdrawalCents` requires `people`. If everyone retires in the same year, the result matches the household `savingYears` projection.
+- With `people`, the request's `savingYears` must be `0` and every `ownerId` must match a person. Without `people`, `ownerId` is ignored (every item counts as joint), and `gapAnnualWithdrawalCents` isn't allowed. If everyone retires in the same year, the result matches the household `savingYears` projection.
 
 ## Public repo boundaries
 

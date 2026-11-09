@@ -40,7 +40,8 @@ const (
 //
 // People lets members of a household retire at different times. Each person
 // has their own SavingYears (years until they retire), and each item may name
-// its owner with OwnerID; items without an owner are joint. When People is set:
+// its owner with OwnerID; items without an owner are joint. Without People,
+// OwnerID is ignored. When People is set:
 //
 //   - an item receives contributions until its owner retires (joint items until
 //     the last person retires), then switches to its drawdown return rate;
@@ -352,12 +353,10 @@ func validate(request Request) error {
 	}
 	var currency string
 	for index, item := range request.Items {
-		if item.OwnerID != "" && !personIDs[item.OwnerID] {
-			if len(request.People) == 0 {
-				problems = append(problems, fmt.Sprintf("items[%d].ownerId requires people", index))
-			} else {
-				problems = append(problems, fmt.Sprintf("items[%d].ownerId must match a person id", index))
-			}
+		// Without people, owners are ignored and every item counts as joint, so
+		// saved items keep projecting when the household plan is turned off.
+		if len(request.People) > 0 && item.OwnerID != "" && !personIDs[item.OwnerID] {
+			problems = append(problems, fmt.Sprintf("items[%d].ownerId must match a person id", index))
 		}
 		if strings.TrimSpace(item.Name) == "" {
 			problems = append(problems, fmt.Sprintf("items[%d].name is required", index))

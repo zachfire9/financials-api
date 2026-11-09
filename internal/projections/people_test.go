@@ -171,6 +171,21 @@ func TestCalculateWithPeopleRetiringTogetherMatchesHouseholdSavingYears(t *testi
 	}
 }
 
+func TestCalculateIgnoresOwnersWithoutPeople(t *testing.T) {
+	item := ItemInput{ID: "a", Name: "Alex 401k", AmountCents: 1000, Currency: "USD", AnnualContributionCents: 100, OwnerID: "alex", SortOrder: 1}
+	withOwner, err := Calculate(Request{SavingYears: 2, Items: []ItemInput{item}})
+	if err != nil {
+		t.Fatalf("expected owners to be ignored without people, got %v", err)
+	}
+	withoutOwner, err := Calculate(Request{SavingYears: 2, Items: withoutOwners([]ItemInput{item})})
+	if err != nil {
+		t.Fatalf("projection without owner: %v", err)
+	}
+	if !reflect.DeepEqual(withOwner.Totals, withoutOwner.Totals) {
+		t.Fatalf("expected identical totals, got %+v and %+v", withOwner.Totals, withoutOwner.Totals)
+	}
+}
+
 func withoutOwners(items []ItemInput) []ItemInput {
 	copied := append([]ItemInput(nil), items...)
 	for index := range copied {
@@ -192,7 +207,6 @@ func TestCalculateRejectsInvalidPeopleRequests(t *testing.T) {
 		request Request
 		want    string
 	}{
-		{"owner without people", Request{SavingYears: 2, Items: []ItemInput{owned}}, "items[0].ownerId requires people"},
 		{"unknown owner", Request{People: twoPeople, Items: []ItemInput{strangerOwned}}, "items[0].ownerId must match a person id"},
 		{"household saving years with people", Request{People: twoPeople, SavingYears: 3, Items: []ItemInput{item}}, "savingYears must be 0 when people are provided"},
 		{"duplicate person id", Request{People: []PersonInput{{ID: "alex", Name: "Alex", SavingYears: 1}, {ID: "alex", Name: "Al", SavingYears: 2}}, Items: []ItemInput{item}}, "people[1].id must be unique"},
