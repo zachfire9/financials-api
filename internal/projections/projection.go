@@ -24,7 +24,11 @@ type Phase string
 const (
 	PhaseStarting Phase = "starting"
 	PhaseSaving   Phase = "saving"
-	PhaseDrawdown Phase = "drawdown"
+	// PhaseTransition covers the years between the first and the last person's
+	// retirement: some accounts still receive contributions while the household
+	// withdraws GapAnnualWithdrawalCents from the pooled balance.
+	PhaseTransition Phase = "transition"
+	PhaseDrawdown   Phase = "drawdown"
 )
 
 // Request contains the pure domain inputs needed to calculate a whole-year projection.
@@ -34,17 +38,42 @@ const (
 // AnnualWithdrawalCents is in today's dollars) and grows the contribution of
 // each item with InflateAnnualContribution set during saving years.
 //
-// Setting any of SavingYears, DrawdownYears, AnnualWithdrawalCents or the
-// inflation rate selects the phase projection. The legacy Years-only
-// (accumulation) projection therefore always has 0% inflation, so
-// InflateAnnualContribution has no effect there.
+// People lets members of a household retire at different times. Each person
+// has their own SavingYears (years until they retire), and each item may name
+// its owner with OwnerID; items without an owner are joint. When People is set:
+//
+//   - an item receives contributions until its owner retires (joint items until
+//     the last person retires), then switches to its drawdown return rate;
+//   - years up to the first retirement are saving years;
+//   - years between the first and the last retirement are transition years, in
+//     which the household withdraws GapAnnualWithdrawalCents from all items;
+//   - the full AnnualWithdrawalCents starts after the last retirement and runs
+//     for DrawdownYears.
+//
+// Request.SavingYears must then be left at 0. Both withdrawal amounts are in
+// today's dollars and grow with inflation from year 1.
+//
+// Setting any of SavingYears, DrawdownYears, AnnualWithdrawalCents, the
+// inflation rate, People or GapAnnualWithdrawalCents selects the phase
+// projection. The legacy Years-only (accumulation) projection therefore always
+// has 0% inflation, so InflateAnnualContribution has no effect there.
 type Request struct {
-	Years                                    int         `json:"years"`
-	SavingYears                              int         `json:"savingYears"`
-	DrawdownYears                            int         `json:"drawdownYears"`
-	AnnualWithdrawalCents                    int64       `json:"annualWithdrawalCents"`
-	AnnualWithdrawalInflationRateBasisPoints int         `json:"annualWithdrawalInflationRateBasisPoints"`
-	Items                                    []ItemInput `json:"items"`
+	Years                                    int           `json:"years"`
+	SavingYears                              int           `json:"savingYears"`
+	DrawdownYears                            int           `json:"drawdownYears"`
+	AnnualWithdrawalCents                    int64         `json:"annualWithdrawalCents"`
+	AnnualWithdrawalInflationRateBasisPoints int           `json:"annualWithdrawalInflationRateBasisPoints"`
+	People                                   []PersonInput `json:"people,omitempty"`
+	GapAnnualWithdrawalCents                 int64         `json:"gapAnnualWithdrawalCents,omitempty"`
+	Items                                    []ItemInput   `json:"items"`
+}
+
+// PersonInput is one member of the household and the number of years until
+// they retire and stop contributing to the items they own.
+type PersonInput struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	SavingYears int    `json:"savingYears"`
 }
 
 // ItemInput is one configurable financial item used by the projection engine.
@@ -57,17 +86,22 @@ type ItemInput struct {
 	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
 	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
+	OwnerID                             string `json:"ownerId,omitempty"`
 	SortOrder                           int    `json:"sortOrder"`
 }
 
 // Projection is the deterministic whole-year projection result.
+//
+// Years = SavingYears + TransitionYears + DrawdownYears. TransitionYears is
+// only non-zero when people retire in different years.
 type Projection struct {
-	Years         int             `json:"years"`
-	SavingYears   int             `json:"savingYears"`
-	DrawdownYears int             `json:"drawdownYears"`
-	Currency      string          `json:"currency"`
-	Items         []ProjectedItem `json:"items"`
-	Totals        []YearlyBalance `json:"totals"`
+	Years           int             `json:"years"`
+	SavingYears     int             `json:"savingYears"`
+	TransitionYears int             `json:"transitionYears"`
+	DrawdownYears   int             `json:"drawdownYears"`
+	Currency        string          `json:"currency"`
+	Items           []ProjectedItem `json:"items"`
+	Totals          []YearlyBalance `json:"totals"`
 }
 
 // ProjectedItem contains the per-year projection series for one input item.
@@ -79,6 +113,7 @@ type ProjectedItem struct {
 	DrawdownAnnualReturnRateBasisPoints *int            `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64           `json:"annualContributionCents"`
 	InflateAnnualContribution           bool            `json:"inflateAnnualContribution"`
+	OwnerID                             string          `json:"ownerId,omitempty"`
 	YearlyBalances                      []YearlyBalance `json:"yearlyBalances"`
 }
 
@@ -146,24 +181,29 @@ func calculateAccumulationProjection(years int, items []ItemInput) Projection {
 }
 
 func calculatePhaseProjection(request Request, items []ItemInput) Projection {
-	totalYears := request.SavingYears + request.DrawdownYears
+	firstRetirement, lastRetirement := retirementYears(request)
+	retirementYearByItem := itemRetirementYears(request, items, lastRetirement)
+	totalYears := lastRetirement + request.DrawdownYears
 	projection := Projection{
-		Years:         totalYears,
-		SavingYears:   request.SavingYears,
-		DrawdownYears: request.DrawdownYears,
-		Currency:      items[0].Currency,
-		Items:         make([]ProjectedItem, 0, len(items)),
-		Totals:        make([]YearlyBalance, totalYears+1),
+		Years:           totalYears,
+		SavingYears:     firstRetirement,
+		TransitionYears: lastRetirement - firstRetirement,
+		DrawdownYears:   request.DrawdownYears,
+		Currency:        items[0].Currency,
+		Items:           make([]ProjectedItem, 0, len(items)),
+		Totals:          make([]YearlyBalance, totalYears+1),
 	}
 	for year := range projection.Totals {
 		projection.Totals[year].Year = year
-		projection.Totals[year].Phase = phaseForYear(year, request.SavingYears)
+		projection.Totals[year].Phase = phaseForYear(year, firstRetirement, lastRetirement)
 	}
 
 	balances := make([]int64, len(items))
+	annualContributions := make([]int64, len(items))
 	itemYearlyBalances := make([][]YearlyBalance, len(items))
 	for index, item := range items {
 		balances[index] = item.AmountCents
+		annualContributions[index] = item.AnnualContributionCents
 		itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
 			Year:         0,
 			Phase:        PhaseStarting,
@@ -171,63 +211,63 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 		})
 	}
 
-	annualContributions := make([]int64, len(items))
-	for index, item := range items {
-		annualContributions[index] = item.AnnualContributionCents
-	}
-	for year := 1; year <= request.SavingYears; year++ {
-		for index, item := range items {
-			contributionCents := annualContributions[index]
-			growthCents := roundBasisPointGrowth(balances[index], item.AnnualReturnRateBasisPoints)
-			currentBalance := balances[index] + growthCents + contributionCents
-			itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
-				Year:              year,
-				Phase:             PhaseSaving,
-				BalanceCents:      currentBalance,
-				ContributionCents: contributionCents,
-				GrowthCents:       growthCents,
-			})
-			balances[index] = currentBalance
-			if item.InflateAnnualContribution {
-				annualContributions[index] += roundBasisPointGrowth(contributionCents, request.AnnualWithdrawalInflationRateBasisPoints)
-			}
-		}
-	}
-
+	// Withdrawal amounts are in today's dollars: year y uses the amount grown by
+	// y-1 years of inflation, compounded (and rounded) one year at a time.
 	annualWithdrawalCents := request.AnnualWithdrawalCents
-	for range request.SavingYears {
-		annualWithdrawalCents += roundBasisPointGrowth(annualWithdrawalCents, request.AnnualWithdrawalInflationRateBasisPoints)
-	}
-	for drawdownYear := 1; drawdownYear <= request.DrawdownYears; drawdownYear++ {
-		year := request.SavingYears + drawdownYear
+	gapWithdrawalCents := request.GapAnnualWithdrawalCents
+
+	for year := 1; year <= totalYears; year++ {
+		phase := phaseForYear(year, firstRetirement, lastRetirement)
 		priorBalances := append([]int64(nil), balances...)
 		growthCents := make([]int64, len(items))
+		contributionCents := make([]int64, len(items))
 		availableBalances := make([]int64, len(items))
 		for index, item := range items {
-			drawdownReturnRate := item.AnnualReturnRateBasisPoints
-			if item.DrawdownAnnualReturnRateBasisPoints != nil {
-				drawdownReturnRate = *item.DrawdownAnnualReturnRateBasisPoints
+			returnRate := item.AnnualReturnRateBasisPoints
+			if year > retirementYearByItem[index] && item.DrawdownAnnualReturnRateBasisPoints != nil {
+				returnRate = *item.DrawdownAnnualReturnRateBasisPoints
 			}
-			growthCents[index] = roundBasisPointGrowth(balances[index], drawdownReturnRate)
-			availableBalances[index] = balances[index] + growthCents[index]
-			if availableBalances[index] < 0 {
-				availableBalances[index] = 0
+			growthCents[index] = roundBasisPointGrowth(balances[index], returnRate)
+			if year <= retirementYearByItem[index] {
+				contributionCents[index] = annualContributions[index]
 			}
+			availableBalances[index] = balances[index] + growthCents[index] + contributionCents[index]
 		}
-		withdrawals, unfundedWithdrawals := fundWithdrawal(annualWithdrawalCents, priorBalances, availableBalances)
-		for index := range items {
+
+		withdrawals := make([]int64, len(items))
+		unfundedWithdrawals := make([]int64, len(items))
+		if phase != PhaseSaving {
+			withdrawalCents := annualWithdrawalCents
+			if phase == PhaseTransition {
+				withdrawalCents = gapWithdrawalCents
+			}
+			for index := range availableBalances {
+				if availableBalances[index] < 0 {
+					availableBalances[index] = 0
+				}
+			}
+			withdrawals, unfundedWithdrawals = fundWithdrawal(withdrawalCents, priorBalances, availableBalances)
+		}
+
+		for index, item := range items {
 			currentBalance := availableBalances[index] - withdrawals[index]
 			itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
 				Year:                    year,
-				Phase:                   PhaseDrawdown,
+				Phase:                   phase,
 				BalanceCents:            currentBalance,
+				ContributionCents:       contributionCents[index],
 				WithdrawalCents:         withdrawals[index],
 				GrowthCents:             growthCents[index],
 				UnfundedWithdrawalCents: unfundedWithdrawals[index],
 			})
 			balances[index] = currentBalance
+			if contributionCents[index] != 0 && item.InflateAnnualContribution {
+				annualContributions[index] += roundBasisPointGrowth(contributionCents[index], request.AnnualWithdrawalInflationRateBasisPoints)
+			}
 		}
+
 		annualWithdrawalCents += roundBasisPointGrowth(annualWithdrawalCents, request.AnnualWithdrawalInflationRateBasisPoints)
+		gapWithdrawalCents += roundBasisPointGrowth(gapWithdrawalCents, request.AnnualWithdrawalInflationRateBasisPoints)
 	}
 
 	for index, item := range items {
@@ -237,6 +277,37 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 	}
 
 	return projection
+}
+
+// retirementYears returns the years of the first and the last retirement.
+// Without people, the whole household retires after request.SavingYears.
+func retirementYears(request Request) (int, int) {
+	if len(request.People) == 0 {
+		return request.SavingYears, request.SavingYears
+	}
+	first, last := request.People[0].SavingYears, request.People[0].SavingYears
+	for _, person := range request.People[1:] {
+		first = min(first, person.SavingYears)
+		last = max(last, person.SavingYears)
+	}
+	return first, last
+}
+
+// itemRetirementYears returns, per item, the last year it receives
+// contributions: its owner's retirement, or the last retirement for joint items.
+func itemRetirementYears(request Request, items []ItemInput, lastRetirement int) []int {
+	savingYearsByPerson := make(map[string]int, len(request.People))
+	for _, person := range request.People {
+		savingYearsByPerson[person.ID] = person.SavingYears
+	}
+	years := make([]int, len(items))
+	for index, item := range items {
+		years[index] = lastRetirement
+		if personYears, ok := savingYearsByPerson[item.OwnerID]; ok {
+			years[index] = personYears
+		}
+	}
+	return years
 }
 
 func validate(request Request) error {
@@ -253,10 +324,12 @@ func validate(request Request) error {
 		if request.SavingYears < 0 || request.SavingYears > maximumYears {
 			problems = append(problems, fmt.Sprintf("savingYears must be between 0 and %d", maximumYears))
 		}
+		problems = append(problems, peopleProblems(request)...)
 		if request.DrawdownYears < 0 || request.DrawdownYears > maximumYears {
 			problems = append(problems, fmt.Sprintf("drawdownYears must be between 0 and %d", maximumYears))
 		}
-		if request.SavingYears+request.DrawdownYears < minimumYears {
+		_, lastRetirement := retirementYears(request)
+		if lastRetirement+request.DrawdownYears < minimumYears {
 			problems = append(problems, "savingYears and drawdownYears must include at least one projected year")
 		}
 		if request.AnnualWithdrawalCents < 0 {
@@ -273,8 +346,19 @@ func validate(request Request) error {
 		problems = append(problems, "items are required")
 	}
 
+	personIDs := make(map[string]bool, len(request.People))
+	for _, person := range request.People {
+		personIDs[person.ID] = true
+	}
 	var currency string
 	for index, item := range request.Items {
+		if item.OwnerID != "" && !personIDs[item.OwnerID] {
+			if len(request.People) == 0 {
+				problems = append(problems, fmt.Sprintf("items[%d].ownerId requires people", index))
+			} else {
+				problems = append(problems, fmt.Sprintf("items[%d].ownerId must match a person id", index))
+			}
+		}
 		if strings.TrimSpace(item.Name) == "" {
 			problems = append(problems, fmt.Sprintf("items[%d].name is required", index))
 		}
@@ -313,6 +397,38 @@ func validate(request Request) error {
 	return nil
 }
 
+func peopleProblems(request Request) []string {
+	var problems []string
+	if request.GapAnnualWithdrawalCents < 0 {
+		problems = append(problems, "gapAnnualWithdrawalCents must be greater than or equal to 0")
+	}
+	if len(request.People) == 0 {
+		if request.GapAnnualWithdrawalCents > 0 {
+			problems = append(problems, "gapAnnualWithdrawalCents requires people")
+		}
+		return problems
+	}
+	if request.SavingYears != 0 {
+		problems = append(problems, "savingYears must be 0 when people are provided; set savingYears per person")
+	}
+	seen := make(map[string]bool, len(request.People))
+	for index, person := range request.People {
+		if strings.TrimSpace(person.ID) == "" {
+			problems = append(problems, fmt.Sprintf("people[%d].id is required", index))
+		} else if seen[person.ID] {
+			problems = append(problems, fmt.Sprintf("people[%d].id must be unique", index))
+		}
+		seen[person.ID] = true
+		if strings.TrimSpace(person.Name) == "" {
+			problems = append(problems, fmt.Sprintf("people[%d].name is required", index))
+		}
+		if person.SavingYears < 0 || person.SavingYears > maximumYears {
+			problems = append(problems, fmt.Sprintf("people[%d].savingYears must be between 0 and %d", index, maximumYears))
+		}
+	}
+	return problems
+}
+
 func newProjectedItem(input ItemInput, yearlyBalances []YearlyBalance) ProjectedItem {
 	return ProjectedItem{
 		ID:                                  input.ID,
@@ -322,6 +438,7 @@ func newProjectedItem(input ItemInput, yearlyBalances []YearlyBalance) Projected
 		DrawdownAnnualReturnRateBasisPoints: input.DrawdownAnnualReturnRateBasisPoints,
 		AnnualContributionCents:             input.AnnualContributionCents,
 		InflateAnnualContribution:           input.InflateAnnualContribution,
+		OwnerID:                             input.OwnerID,
 		YearlyBalances:                      yearlyBalances,
 	}
 }
@@ -359,18 +476,22 @@ func addToTotals(totals []YearlyBalance, balances []YearlyBalance) {
 	}
 }
 
-func phaseForYear(year int, savingYears int) Phase {
+func phaseForYear(year int, firstRetirement int, lastRetirement int) Phase {
 	if year == 0 {
 		return PhaseStarting
 	}
-	if year <= savingYears {
+	if year <= firstRetirement {
 		return PhaseSaving
+	}
+	if year <= lastRetirement {
+		return PhaseTransition
 	}
 	return PhaseDrawdown
 }
 
 func usesPhaseProjection(request Request) bool {
-	return request.SavingYears != 0 || request.DrawdownYears != 0 || request.AnnualWithdrawalCents != 0 || request.AnnualWithdrawalInflationRateBasisPoints != 0
+	return request.SavingYears != 0 || request.DrawdownYears != 0 || request.AnnualWithdrawalCents != 0 ||
+		request.AnnualWithdrawalInflationRateBasisPoints != 0 || len(request.People) > 0 || request.GapAnnualWithdrawalCents != 0
 }
 
 // fundWithdrawal splits one drawdown year's withdrawal across items.

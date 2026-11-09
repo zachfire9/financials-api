@@ -300,6 +300,7 @@ func projectionInputsFromFinancialItems(items []financialitems.FinancialItem) []
 			DrawdownAnnualReturnRateBasisPoints: item.DrawdownAnnualReturnRateBasisPoints,
 			AnnualContributionCents:             item.AnnualContributionCents,
 			InflateAnnualContribution:           item.InflateAnnualContribution,
+			OwnerID:                             item.OwnerID,
 			SortOrder:                           item.SortOrder,
 		})
 	}

@@ -96,6 +96,7 @@ func ValidateBackup(backup Backup) error {
 			item.AnnualReturnRateBasisPoints,
 			item.DrawdownAnnualReturnRateBasisPoints,
 			item.AnnualContributionCents,
+			item.OwnerID,
 			item.SortOrder,
 		); err != nil {
 			problems = append(problems, prefix+": "+err.Error())

@@ -32,10 +32,16 @@ type FinancialItem struct {
 	DrawdownAnnualReturnRateBasisPoints *int      `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64     `json:"annualContributionCents"`
 	InflateAnnualContribution           bool      `json:"inflateAnnualContribution"`
+	OwnerID                             string    `json:"ownerId,omitempty"`
 	SortOrder                           int       `json:"sortOrder"`
 	CreatedAt                           time.Time `json:"createdAt"`
 	UpdatedAt                           time.Time `json:"updatedAt"`
 }
+
+// maximumOwnerIDLength caps ownerId, an optional opaque reference to a person
+// in projection settings (for example "person-1"). An empty ownerId means the
+// item is jointly owned.
+const maximumOwnerIDLength = 64
 
 // CreateFinancialItemRequest contains user-editable fields for a new financial item.
 type CreateFinancialItemRequest struct {
@@ -46,6 +52,7 @@ type CreateFinancialItemRequest struct {
 	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
 	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
+	OwnerID                             string `json:"ownerId,omitempty"`
 	SortOrder                           int    `json:"sortOrder"`
 }
 
@@ -58,6 +65,7 @@ type UpdateFinancialItemRequest struct {
 	DrawdownAnnualReturnRateBasisPoints *int   `json:"drawdownAnnualReturnRateBasisPoints,omitempty"`
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
 	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
+	OwnerID                             string `json:"ownerId,omitempty"`
 	SortOrder                           int    `json:"sortOrder"`
 }
 
@@ -70,6 +78,7 @@ func (request CreateFinancialItemRequest) Validate() error {
 		request.AnnualReturnRateBasisPoints,
 		request.DrawdownAnnualReturnRateBasisPoints,
 		request.AnnualContributionCents,
+		request.OwnerID,
 		request.SortOrder,
 	)
 }
@@ -83,11 +92,12 @@ func (request UpdateFinancialItemRequest) Validate() error {
 		request.AnnualReturnRateBasisPoints,
 		request.DrawdownAnnualReturnRateBasisPoints,
 		request.AnnualContributionCents,
+		request.OwnerID,
 		request.SortOrder,
 	)
 }
 
-func validateFinancialItemFields(name string, amountCents int64, currency string, annualReturnRateBasisPoints int, drawdownAnnualReturnRateBasisPoints *int, annualContributionCents int64, sortOrder int) error {
+func validateFinancialItemFields(name string, amountCents int64, currency string, annualReturnRateBasisPoints int, drawdownAnnualReturnRateBasisPoints *int, annualContributionCents int64, ownerID string, sortOrder int) error {
 	var problems []string
 
 	if strings.TrimSpace(name) == "" {
@@ -109,6 +119,9 @@ func validateFinancialItemFields(name string, amountCents int64, currency string
 	}
 	if annualContributionCents < 0 {
 		problems = append(problems, "annualContributionCents must be greater than or equal to 0")
+	}
+	if len(ownerID) > maximumOwnerIDLength || strings.TrimSpace(ownerID) != ownerID {
+		problems = append(problems, fmt.Sprintf("ownerId must be at most %d characters with no leading or trailing spaces", maximumOwnerIDLength))
 	}
 	if sortOrder < 0 {
 		problems = append(problems, "sortOrder must be greater than or equal to 0")

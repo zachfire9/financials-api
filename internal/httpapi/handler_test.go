@@ -947,3 +947,62 @@ func TestAccessControlRejectsWrongToken(t *testing.T) {
 		}
 	}
 }
+
+func serveJSON(t *testing.T, handler http.Handler, method, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(method, path, strings.NewReader(body)))
+	return recorder
+}
+
+func TestFinancialItemsKeepOwnerAndProjectPerPerson(t *testing.T) {
+	handler := NewHandler()
+	created := serveJSON(t, handler, http.MethodPost, "/financial-items",
+		`{"name":"Alex 401k","amountCents":1000,"currency":"USD","annualReturnRateBasisPoints":0,"annualContributionCents":100,"ownerId":"alex","sortOrder":1}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, created.Code, created.Body.String())
+	}
+	var item financialitems.FinancialItem
+	decodeJSON(t, created, &item)
+	if item.OwnerID != "alex" {
+		t.Fatalf("expected ownerId alex, got %q", item.OwnerID)
+	}
+
+	projected := serveJSON(t, handler, http.MethodPost, "/projections",
+		`{"people":[{"id":"alex","name":"Alex","savingYears":1},{"id":"sam","name":"Sam","savingYears":3}],"drawdownYears":1,"annualWithdrawalCents":100}`)
+	if projected.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, projected.Code, projected.Body.String())
+	}
+	var projection projections.Projection
+	decodeJSON(t, projected, &projection)
+	if projection.SavingYears != 1 || projection.TransitionYears != 2 {
+		t.Fatalf("expected 1 saving and 2 transition years, got %d and %d", projection.SavingYears, projection.TransitionYears)
+	}
+	if got := projection.Items[0].YearlyBalances[2].ContributionCents; got != 0 {
+		t.Fatalf("Alex's account should stop contributing after Alex retires, got %d in year 2", got)
+	}
+}
+
+func TestFinancialItemsRejectInvalidOwner(t *testing.T) {
+	recorder := serveJSON(t, NewHandler(), http.MethodPost, "/financial-items",
+		`{"name":"Account","amountCents":1000,"currency":"USD","annualReturnRateBasisPoints":0,"annualContributionCents":0,"ownerId":" alex","sortOrder":1}`)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+}
+
+func TestStatelessProjectionsAcceptPeople(t *testing.T) {
+	handler := NewHandlerWithRepositoryAndConfig(financialitems.NewInMemoryRepository(), HandlerConfig{StatelessProjectionsOnly: true})
+	recorder := serveJSON(t, handler, http.MethodPost, "/projections",
+		`{"people":[{"id":"alex","name":"Alex","savingYears":2},{"id":"sam","name":"Sam","savingYears":4}],"drawdownYears":2,"annualWithdrawalCents":5000,"gapAnnualWithdrawalCents":1000,
+		  "items":[{"id":"a","name":"Alex IRA","amountCents":100000,"currency":"USD","annualReturnRateBasisPoints":500,"annualContributionCents":2000,"ownerId":"alex","sortOrder":1},
+		           {"id":"j","name":"Joint","amountCents":50000,"currency":"USD","annualReturnRateBasisPoints":300,"annualContributionCents":1000,"sortOrder":2}]}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var projection projections.Projection
+	decodeJSON(t, recorder, &projection)
+	if projection.Years != 6 || projection.Totals[3].Phase != projections.PhaseTransition || projection.Totals[3].WithdrawalCents != 1000 {
+		t.Fatalf("unexpected projection: years=%d year3=%+v", projection.Years, projection.Totals[3])
+	}
+}
