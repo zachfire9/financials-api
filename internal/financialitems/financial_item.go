@@ -33,6 +33,8 @@ type FinancialItem struct {
 	AnnualContributionCents             int64     `json:"annualContributionCents"`
 	InflateAnnualContribution           bool      `json:"inflateAnnualContribution"`
 	OwnerID                             string    `json:"ownerId,omitempty"`
+	WithdrawalPriority                  int       `json:"withdrawalPriority,omitempty"`
+	WithdrawalAvailableAfterYear        *int      `json:"withdrawalAvailableAfterYear,omitempty"`
 	SortOrder                           int       `json:"sortOrder"`
 	CreatedAt                           time.Time `json:"createdAt"`
 	UpdatedAt                           time.Time `json:"updatedAt"`
@@ -42,6 +44,14 @@ type FinancialItem struct {
 // in projection settings (for example "person-1"). An empty ownerId means the
 // item is jointly owned.
 const maximumOwnerIDLength = 64
+
+// Withdrawal settings, matching the projection engine: priority 1 (first),
+// 2 (normal) or 3 (last), 0 meaning normal; availability as the last year an
+// item can't be withdrawn from.
+const (
+	maximumWithdrawalPriority           = 3
+	maximumWithdrawalAvailableAfterYear = 150
+)
 
 // CreateFinancialItemRequest contains user-editable fields for a new financial item.
 type CreateFinancialItemRequest struct {
@@ -53,6 +63,8 @@ type CreateFinancialItemRequest struct {
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
 	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
 	OwnerID                             string `json:"ownerId,omitempty"`
+	WithdrawalPriority                  int    `json:"withdrawalPriority,omitempty"`
+	WithdrawalAvailableAfterYear        *int   `json:"withdrawalAvailableAfterYear,omitempty"`
 	SortOrder                           int    `json:"sortOrder"`
 }
 
@@ -66,6 +78,8 @@ type UpdateFinancialItemRequest struct {
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
 	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
 	OwnerID                             string `json:"ownerId,omitempty"`
+	WithdrawalPriority                  int    `json:"withdrawalPriority,omitempty"`
+	WithdrawalAvailableAfterYear        *int   `json:"withdrawalAvailableAfterYear,omitempty"`
 	SortOrder                           int    `json:"sortOrder"`
 }
 
@@ -79,6 +93,8 @@ func (request CreateFinancialItemRequest) Validate() error {
 		request.DrawdownAnnualReturnRateBasisPoints,
 		request.AnnualContributionCents,
 		request.OwnerID,
+		request.WithdrawalPriority,
+		request.WithdrawalAvailableAfterYear,
 		request.SortOrder,
 	)
 }
@@ -93,11 +109,13 @@ func (request UpdateFinancialItemRequest) Validate() error {
 		request.DrawdownAnnualReturnRateBasisPoints,
 		request.AnnualContributionCents,
 		request.OwnerID,
+		request.WithdrawalPriority,
+		request.WithdrawalAvailableAfterYear,
 		request.SortOrder,
 	)
 }
 
-func validateFinancialItemFields(name string, amountCents int64, currency string, annualReturnRateBasisPoints int, drawdownAnnualReturnRateBasisPoints *int, annualContributionCents int64, ownerID string, sortOrder int) error {
+func validateFinancialItemFields(name string, amountCents int64, currency string, annualReturnRateBasisPoints int, drawdownAnnualReturnRateBasisPoints *int, annualContributionCents int64, ownerID string, withdrawalPriority int, withdrawalAvailableAfterYear *int, sortOrder int) error {
 	var problems []string
 
 	if strings.TrimSpace(name) == "" {
@@ -122,6 +140,12 @@ func validateFinancialItemFields(name string, amountCents int64, currency string
 	}
 	if len(ownerID) > maximumOwnerIDLength || strings.TrimSpace(ownerID) != ownerID {
 		problems = append(problems, fmt.Sprintf("ownerId must be at most %d characters with no leading or trailing spaces", maximumOwnerIDLength))
+	}
+	if withdrawalPriority < 0 || withdrawalPriority > maximumWithdrawalPriority {
+		problems = append(problems, "withdrawalPriority must be 1 (first), 2 (normal) or 3 (last)")
+	}
+	if withdrawalAvailableAfterYear != nil && (*withdrawalAvailableAfterYear < 0 || *withdrawalAvailableAfterYear > maximumWithdrawalAvailableAfterYear) {
+		problems = append(problems, fmt.Sprintf("withdrawalAvailableAfterYear must be between 0 and %d", maximumWithdrawalAvailableAfterYear))
 	}
 	if sortOrder < 0 {
 		problems = append(problems, "sortOrder must be greater than or equal to 0")

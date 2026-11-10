@@ -178,7 +178,7 @@ Expected response:
 
 ## Financial items API
 
-Financial items are generic projection inputs such as example savings, brokerage, or goal balances. Use fake/example data in committed docs and tests only. `drawdownAnnualReturnRateBasisPoints` is optional; omit it to reuse the regular `annualReturnRateBasisPoints` once drawdown begins. `ownerId` is optional: it names the person in a projection's `people` who owns the account (see [Retiring at different times](#retiring-at-different-times)); omit it for joint accounts. It's an opaque string of at most 64 characters.
+Financial items are generic projection inputs such as example savings, brokerage, or goal balances. Use fake/example data in committed docs and tests only. `drawdownAnnualReturnRateBasisPoints` is optional; omit it to reuse the regular `annualReturnRateBasisPoints` once drawdown begins. `ownerId` is optional: it names the person in a projection's `people` who owns the account (see [Retiring at different times](#retiring-at-different-times)); omit it for joint accounts. It's an opaque string of at most 64 characters. `withdrawalPriority` and `withdrawalAvailableAfterYear` are optional; see [Withdrawal order](#withdrawal-order).
 
 Create an item:
 
@@ -366,11 +366,22 @@ How it works:
 
 - An item receives contributions until its owner retires; joint items until the last person retires. From the year after its owner retires, an item uses its `drawdownAnnualReturnRateBasisPoints` if set.
 - Years up to the first retirement have phase `saving`.
-- Years between the first and the last retirement have phase `transition`. Accounts of people still working keep contributing, and the household withdraws `gapAnnualWithdrawalCents` (optional, default `0`) from all items, split the same way as drawdown withdrawals.
+- Years between the first and the last retirement have phase `transition`. Accounts of people still working keep contributing, and the household withdraws `gapAnnualWithdrawalCents` (optional, default `0`) from the items that are available: by default the retired person's accounts and joint accounts (see [Withdrawal order](#withdrawal-order)).
 - After the last retirement, the full `annualWithdrawalCents` is withdrawn for `drawdownYears`, with phase `drawdown`.
 - Both withdrawal amounts are in today's dollars and grow by `annualWithdrawalInflationRateBasisPoints` every year from year 1.
 - The response adds `transitionYears`: `years` = `savingYears` (to the first retirement) + `transitionYears` + `drawdownYears`.
 - With `people`, the request's `savingYears` must be `0` and every `ownerId` must match a person. Without `people`, `ownerId` is ignored (every item counts as joint), and `gapAnnualWithdrawalCents` isn't allowed. If everyone retires in the same year, the result matches the household `savingYears` projection.
+
+### Withdrawal order
+
+By default, a withdrawal is split across every item in proportion to its balance at the start of the year. Two optional item fields change that:
+
+- `withdrawalPriority`: `1` (first), `2` (normal, also used when omitted or `0`) or `3` (last). Withdrawals come from the first group until it's empty, then the normal group, then the last. Items in the same group share a withdrawal in proportion to their balances.
+- `withdrawalAvailableAfterYear`: the last year the item can't be withdrawn from. Omitted means the default: with `people`, an item with an owner becomes available after its owner retires; otherwise it's available from year 1. `0` makes an item available from year 1 even if its owner is still working.
+
+If the available items can't cover a withdrawal, the rest is reported as `unfundedWithdrawalCents`, as before. In years with withdrawals, `lockedBalanceCents` (on each item and in `totals`) is the end-of-year balance of items that couldn't be withdrawn from, so a shortfall with money still locked away can be told apart from running out.
+
+Requests that set neither field and have no `people` project exactly as before. With `people`, accounts of someone still working are no longer withdrawn from during transition years unless they set `withdrawalAvailableAfterYear: 0`.
 
 ## Public repo boundaries
 

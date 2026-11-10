@@ -21,9 +21,12 @@ func balancesOf(item ProjectedItem) []int64 {
 // Alex retires after year 1, Sam after year 3. With 0% returns:
 //
 //	year 1 (saving):     every item +100 contribution -> 1100 each
-//	year 2 (transition): Alex stops contributing; gap 300 split 100/100/100
-//	year 3 (transition): gap 300 split by prior balances 1000/1100/1100 -> 94/103/103
-//	year 4 (drawdown):   nobody contributes; 600 split by 906/1097/1097 -> 176/212/212
+//	year 2 (transition): Alex stops contributing. Sam's account can't be
+//	                     withdrawn from until Sam retires, so gap 300 comes from
+//	                     Alex's and the joint account: 150/150
+//	year 3 (transition): gap 300 split by prior balances 950/1050 -> 143/157
+//	year 4 (drawdown):   nobody contributes; everything is available;
+//	                     600 split by 807/1300/993 -> 157/251/192
 func TestCalculateStopsContributionsAtEachOwnersRetirement(t *testing.T) {
 	projection, err := Calculate(Request{
 		People: []PersonInput{
@@ -56,9 +59,9 @@ func TestCalculateStopsContributionsAtEachOwnersRetirement(t *testing.T) {
 	}
 
 	want := map[string][]int64{
-		"a": {1000, 1100, 1000, 906, 730},
-		"s": {1000, 1100, 1100, 1097, 885},
-		"j": {1000, 1100, 1100, 1097, 885},
+		"a": {1000, 1100, 950, 807, 650},
+		"s": {1000, 1100, 1200, 1300, 1049},
+		"j": {1000, 1100, 1050, 993, 801},
 	}
 	for _, item := range projection.Items {
 		if got := balancesOf(item); !reflect.DeepEqual(got, want[item.ID]) {
@@ -87,6 +90,9 @@ func TestCalculateStopsContributionsAtEachOwnersRetirement(t *testing.T) {
 		if got != wantTotals[year] {
 			t.Fatalf("year %d totals: expected %+v, got %+v", year, wantTotals[year], got)
 		}
+	}
+	if got := []int64{projection.Totals[2].LockedBalanceCents, projection.Totals[3].LockedBalanceCents, projection.Totals[4].LockedBalanceCents}; !reflect.DeepEqual(got, []int64{1200, 1300, 0}) {
+		t.Fatalf("expected Sam's balance to be locked until Sam retires, got %v", got)
 	}
 	if projection.Items[0].OwnerID != "alex" || projection.Items[2].OwnerID != "" {
 		t.Fatalf("expected owners to be echoed, got %q and %q", projection.Items[0].OwnerID, projection.Items[2].OwnerID)

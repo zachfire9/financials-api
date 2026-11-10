@@ -1006,3 +1006,37 @@ func TestStatelessProjectionsAcceptPeople(t *testing.T) {
 		t.Fatalf("unexpected projection: years=%d year3=%+v", projection.Years, projection.Totals[3])
 	}
 }
+
+func TestFinancialItemsKeepWithdrawalSettingsAndProjectInOrder(t *testing.T) {
+	handler := NewHandler()
+	for _, body := range []string{
+		`{"name":"401k","amountCents":1000,"currency":"USD","annualReturnRateBasisPoints":0,"annualContributionCents":0,"withdrawalAvailableAfterYear":0,"sortOrder":1}`,
+		`{"name":"Brokerage","amountCents":1000,"currency":"USD","annualReturnRateBasisPoints":0,"annualContributionCents":0,"withdrawalPriority":1,"sortOrder":2}`,
+	} {
+		if recorder := serveJSON(t, handler, http.MethodPost, "/financial-items", body); recorder.Code != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, recorder.Code, recorder.Body.String())
+		}
+	}
+
+	listed := serveJSON(t, handler, http.MethodGet, "/financial-items", "")
+	var items []financialitems.FinancialItem
+	decodeJSON(t, listed, &items)
+	if items[0].WithdrawalAvailableAfterYear == nil || *items[0].WithdrawalAvailableAfterYear != 0 || items[1].WithdrawalPriority != 1 {
+		t.Fatalf("expected withdrawal settings to be saved, got %+v", items)
+	}
+
+	projected := serveJSON(t, handler, http.MethodPost, "/projections", `{"drawdownYears":1,"annualWithdrawalCents":400}`)
+	var projection projections.Projection
+	decodeJSON(t, projected, &projection)
+	if got := projection.Items[1].YearlyBalances[1].WithdrawalCents; got != 400 {
+		t.Fatalf("expected the brokerage (first) to cover the withdrawal, got %d", got)
+	}
+}
+
+func TestFinancialItemsRejectInvalidWithdrawalPriority(t *testing.T) {
+	recorder := serveJSON(t, NewHandler(), http.MethodPost, "/financial-items",
+		`{"name":"Account","amountCents":1000,"currency":"USD","annualReturnRateBasisPoints":0,"annualContributionCents":0,"withdrawalPriority":7,"sortOrder":1}`)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+}

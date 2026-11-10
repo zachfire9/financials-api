@@ -3,6 +3,7 @@ package projections
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -20,6 +21,13 @@ const (
 var currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 type Phase string
+
+// Withdrawal priority groups for ItemInput.WithdrawalPriority.
+const (
+	withdrawalPriorityFirst  = 1
+	withdrawalPriorityNormal = 2
+	withdrawalPriorityLast   = 3
+)
 
 const (
 	PhaseStarting Phase = "starting"
@@ -47,7 +55,8 @@ const (
 //     the last person retires), then switches to its drawdown return rate;
 //   - years up to the first retirement are saving years;
 //   - years between the first and the last retirement are transition years, in
-//     which the household withdraws GapAnnualWithdrawalCents from all items;
+//     which the household withdraws GapAnnualWithdrawalCents from the items
+//     that are available (by default, not those of people still working);
 //   - the full AnnualWithdrawalCents starts after the last retirement and runs
 //     for DrawdownYears.
 //
@@ -88,7 +97,17 @@ type ItemInput struct {
 	AnnualContributionCents             int64  `json:"annualContributionCents"`
 	InflateAnnualContribution           bool   `json:"inflateAnnualContribution"`
 	OwnerID                             string `json:"ownerId,omitempty"`
-	SortOrder                           int    `json:"sortOrder"`
+	// WithdrawalPriority orders withdrawals across items: 1 = first,
+	// 2 = normal (also used when 0/omitted), 3 = last. Withdrawals come from the
+	// lowest priority group first; items in the same group share a withdrawal
+	// in proportion to their balances.
+	WithdrawalPriority int `json:"withdrawalPriority,omitempty"`
+	// WithdrawalAvailableAfterYear is the last year the item can't be withdrawn
+	// from. Nil means the default: after the owner retires when people are
+	// set and the item has an owner, otherwise available from year 1. 0 means
+	// available from year 1.
+	WithdrawalAvailableAfterYear *int `json:"withdrawalAvailableAfterYear,omitempty"`
+	SortOrder                    int  `json:"sortOrder"`
 }
 
 // Projection is the deterministic whole-year projection result.
@@ -115,6 +134,8 @@ type ProjectedItem struct {
 	AnnualContributionCents             int64           `json:"annualContributionCents"`
 	InflateAnnualContribution           bool            `json:"inflateAnnualContribution"`
 	OwnerID                             string          `json:"ownerId,omitempty"`
+	WithdrawalPriority                  int             `json:"withdrawalPriority,omitempty"`
+	WithdrawalAvailableAfterYear        *int            `json:"withdrawalAvailableAfterYear,omitempty"`
 	YearlyBalances                      []YearlyBalance `json:"yearlyBalances"`
 }
 
@@ -127,6 +148,10 @@ type YearlyBalance struct {
 	WithdrawalCents         int64 `json:"withdrawalCents"`
 	GrowthCents             int64 `json:"growthCents"`
 	UnfundedWithdrawalCents int64 `json:"unfundedWithdrawalCents"`
+	// LockedBalanceCents is the end-of-year balance of items that couldn't be
+	// withdrawn from that year (see ItemInput.WithdrawalAvailableAfterYear).
+	// Only set in years with withdrawals.
+	LockedBalanceCents int64 `json:"lockedBalanceCents,omitempty"`
 }
 
 // ValidationError groups one or more projection validation failures.
@@ -184,6 +209,8 @@ func calculateAccumulationProjection(years int, items []ItemInput) Projection {
 func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 	firstRetirement, lastRetirement := retirementYears(request)
 	retirementYearByItem := itemRetirementYears(request, items, lastRetirement)
+	availableAfterYearByItem := itemAvailableAfterYears(request, items)
+	priorityByItem := itemWithdrawalPriorities(items)
 	totalYears := lastRetirement + request.DrawdownYears
 	projection := Projection{
 		Years:           totalYears,
@@ -237,6 +264,10 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 
 		withdrawals := make([]int64, len(items))
 		unfundedWithdrawals := make([]int64, len(items))
+		available := make([]bool, len(items))
+		for index := range items {
+			available[index] = year > availableAfterYearByItem[index]
+		}
 		if phase != PhaseSaving {
 			withdrawalCents := annualWithdrawalCents
 			if phase == PhaseTransition {
@@ -247,11 +278,15 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 					availableBalances[index] = 0
 				}
 			}
-			withdrawals, unfundedWithdrawals = fundWithdrawal(withdrawalCents, priorBalances, availableBalances)
+			withdrawals, unfundedWithdrawals = fundOrderedWithdrawal(withdrawalCents, priorBalances, availableBalances, priorityByItem, available)
 		}
 
 		for index, item := range items {
 			currentBalance := availableBalances[index] - withdrawals[index]
+			lockedCents := int64(0)
+			if phase != PhaseSaving && !available[index] {
+				lockedCents = currentBalance
+			}
 			itemYearlyBalances[index] = append(itemYearlyBalances[index], YearlyBalance{
 				Year:                    year,
 				Phase:                   phase,
@@ -260,6 +295,7 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 				WithdrawalCents:         withdrawals[index],
 				GrowthCents:             growthCents[index],
 				UnfundedWithdrawalCents: unfundedWithdrawals[index],
+				LockedBalanceCents:      lockedCents,
 			})
 			balances[index] = currentBalance
 			if contributionCents[index] != 0 && item.InflateAnnualContribution {
@@ -311,6 +347,93 @@ func itemRetirementYears(request Request, items []ItemInput, lastRetirement int)
 	return years
 }
 
+// itemAvailableAfterYears returns, per item, the last year it can't be
+// withdrawn from: the explicit setting, else its owner's retirement when
+// people are set, else 0 (available from year 1).
+func itemAvailableAfterYears(request Request, items []ItemInput) []int {
+	savingYearsByPerson := make(map[string]int, len(request.People))
+	for _, person := range request.People {
+		savingYearsByPerson[person.ID] = person.SavingYears
+	}
+	years := make([]int, len(items))
+	for index, item := range items {
+		if item.WithdrawalAvailableAfterYear != nil {
+			years[index] = *item.WithdrawalAvailableAfterYear
+		} else if ownerYears, ok := savingYearsByPerson[item.OwnerID]; ok {
+			years[index] = ownerYears
+		}
+	}
+	return years
+}
+
+func itemWithdrawalPriorities(items []ItemInput) []int {
+	priorities := make([]int, len(items))
+	for index, item := range items {
+		priorities[index] = item.WithdrawalPriority
+		if priorities[index] == 0 {
+			priorities[index] = withdrawalPriorityNormal
+		}
+	}
+	return priorities
+}
+
+// fundOrderedWithdrawal funds a withdrawal from available items, one priority
+// group at a time, lowest first. Within a group the withdrawal is split by
+// fundWithdrawal (in proportion to balances). Anything still unfunded after
+// the last group is a shortfall, attributed within that group; if no item is
+// available it's spread across all items by balance.
+func fundOrderedWithdrawal(withdrawalCents int64, priorBalances, availableBalances []int64, priorities []int, available []bool) ([]int64, []int64) {
+	withdrawals := make([]int64, len(availableBalances))
+	unfunded := make([]int64, len(availableBalances))
+	if withdrawalCents <= 0 {
+		return withdrawals, unfunded
+	}
+
+	groups := make(map[int][]int)
+	order := make([]int, 0, 3)
+	for index, priority := range priorities {
+		if !available[index] {
+			continue
+		}
+		if _, seen := groups[priority]; !seen {
+			order = append(order, priority)
+		}
+		groups[priority] = append(groups[priority], index)
+	}
+	slices.Sort(order)
+
+	remainingCents := withdrawalCents
+	var lastGroup []int
+	var lastUnfunded []int64
+	for _, priority := range order {
+		group := groups[priority]
+		groupPrior := make([]int64, len(group))
+		groupAvailable := make([]int64, len(group))
+		for position, index := range group {
+			groupPrior[position] = priorBalances[index]
+			groupAvailable[position] = availableBalances[index]
+		}
+		groupWithdrawals, groupUnfunded := fundWithdrawal(remainingCents, groupPrior, groupAvailable)
+		for position, index := range group {
+			withdrawals[index] = groupWithdrawals[position]
+		}
+		remainingCents = sumCents(groupUnfunded)
+		lastGroup, lastUnfunded = group, groupUnfunded
+		if remainingCents == 0 {
+			return withdrawals, unfunded
+		}
+	}
+
+	if lastGroup != nil {
+		for position, index := range lastGroup {
+			unfunded[index] = lastUnfunded[position]
+		}
+		return withdrawals, unfunded
+	}
+	_, unfunded = fundWithdrawal(remainingCents, priorBalances, make([]int64, len(availableBalances)))
+	return withdrawals, unfunded
+}
+
 func validate(request Request) error {
 	var problems []string
 	phaseProjection := usesPhaseProjection(request)
@@ -355,6 +478,12 @@ func validate(request Request) error {
 	for index, item := range request.Items {
 		// Without people, owners are ignored and every item counts as joint, so
 		// saved items keep projecting when the household plan is turned off.
+		if item.WithdrawalPriority < 0 || item.WithdrawalPriority > withdrawalPriorityLast {
+			problems = append(problems, fmt.Sprintf("items[%d].withdrawalPriority must be 1 (first), 2 (normal) or 3 (last)", index))
+		}
+		if item.WithdrawalAvailableAfterYear != nil && (*item.WithdrawalAvailableAfterYear < 0 || *item.WithdrawalAvailableAfterYear > 2*maximumYears) {
+			problems = append(problems, fmt.Sprintf("items[%d].withdrawalAvailableAfterYear must be between 0 and %d", index, 2*maximumYears))
+		}
 		if len(request.People) > 0 && item.OwnerID != "" && !personIDs[item.OwnerID] {
 			problems = append(problems, fmt.Sprintf("items[%d].ownerId must match a person id", index))
 		}
@@ -438,6 +567,8 @@ func newProjectedItem(input ItemInput, yearlyBalances []YearlyBalance) Projected
 		AnnualContributionCents:             input.AnnualContributionCents,
 		InflateAnnualContribution:           input.InflateAnnualContribution,
 		OwnerID:                             input.OwnerID,
+		WithdrawalPriority:                  input.WithdrawalPriority,
+		WithdrawalAvailableAfterYear:        input.WithdrawalAvailableAfterYear,
 		YearlyBalances:                      yearlyBalances,
 	}
 }
@@ -472,6 +603,7 @@ func addToTotals(totals []YearlyBalance, balances []YearlyBalance) {
 		totals[year].WithdrawalCents += balance.WithdrawalCents
 		totals[year].GrowthCents += balance.GrowthCents
 		totals[year].UnfundedWithdrawalCents += balance.UnfundedWithdrawalCents
+		totals[year].LockedBalanceCents += balance.LockedBalanceCents
 	}
 }
 

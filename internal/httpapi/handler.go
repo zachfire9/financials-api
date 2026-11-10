@@ -301,6 +301,8 @@ func projectionInputsFromFinancialItems(items []financialitems.FinancialItem) []
 			AnnualContributionCents:             item.AnnualContributionCents,
 			InflateAnnualContribution:           item.InflateAnnualContribution,
 			OwnerID:                             item.OwnerID,
+			WithdrawalPriority:                  item.WithdrawalPriority,
+			WithdrawalAvailableAfterYear:        item.WithdrawalAvailableAfterYear,
 			SortOrder:                           item.SortOrder,
 		})
 	}
