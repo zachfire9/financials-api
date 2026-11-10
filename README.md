@@ -178,7 +178,7 @@ Expected response:
 
 ## Financial items API
 
-Financial items are generic projection inputs such as example savings, brokerage, or goal balances. Use fake/example data in committed docs and tests only. `drawdownAnnualReturnRateBasisPoints` is optional; omit it to reuse the regular `annualReturnRateBasisPoints` once drawdown begins.
+Financial items are generic projection inputs such as example savings, brokerage, or goal balances. Use fake/example data in committed docs and tests only. `drawdownAnnualReturnRateBasisPoints` is optional; omit it to reuse the regular `annualReturnRateBasisPoints` once drawdown begins. `ownerId` is optional: it names the person in a projection's `people` who owns the account (see [Retiring at different times](#retiring-at-different-times)); omit it for joint accounts. It's an opaque string of at most 64 characters.
 
 Create an item:
 
@@ -297,6 +297,7 @@ Expected response shape excerpt:
 {
   "years": 3,
   "savingYears": 1,
+  "transitionYears": 0,
   "drawdownYears": 2,
   "currency": "USD",
   "items": [
@@ -345,13 +346,31 @@ Expected response shape excerpt:
 Projection rules:
 
 - Accumulation-only requests use `years`, which must be between `1` and `75`.
-- Drawdown-capable requests use `savingYears` plus optional `drawdownYears`; `years` is mutually exclusive with those phase fields.
+- Drawdown-capable requests use `savingYears` (or per-person `people`, below) plus optional `drawdownYears`; `years` is mutually exclusive with those phase fields.
 - `drawdownYears` greater than `0` requires `annualWithdrawalCents`.
 - `annualWithdrawalInflationRateBasisPoints` is optional and defaults to `0`; `300` means the requested withdrawal grows by 3% after each projection year, so one saving year makes the first drawdown withdrawal $61,800 from a $60,000 base.
 - `drawdownAnnualReturnRateBasisPoints` is optional per item; if omitted, drawdown years use the normal `annualReturnRateBasisPoints`.
 - All items in one projection must use the same currency.
 - Hypothetical `items` are validated but not saved.
 - Unknown JSON fields return `400` to catch request typos.
+
+### Retiring at different times
+
+For a household where people retire in different years, send `people` instead of `savingYears`. Each person has an `id`, a `name` and their own `savingYears` (years until they retire), and each item can set `ownerId` to one of those IDs. Items without an `ownerId` are joint.
+
+```powershell
+Invoke-RestMethod http://localhost:8080/projections -Method Post -ContentType 'application/json' -Body '{"people":[{"id":"person-1","name":"Example A","savingYears":1},{"id":"person-2","name":"Example B","savingYears":3}],"drawdownYears":1,"gapAnnualWithdrawalCents":300,"annualWithdrawalCents":600,"items":[{"id":"a","name":"A 401k","amountCents":1000,"currency":"USD","annualReturnRateBasisPoints":0,"annualContributionCents":100,"ownerId":"person-1","sortOrder":1},{"id":"b","name":"B 401k","amountCents":1000,"currency":"USD","annualReturnRateBasisPoints":0,"annualContributionCents":100,"ownerId":"person-2","sortOrder":2},{"id":"j","name":"Joint brokerage","amountCents":1000,"currency":"USD","annualReturnRateBasisPoints":0,"annualContributionCents":100,"sortOrder":3}]}'
+```
+
+How it works:
+
+- An item receives contributions until its owner retires; joint items until the last person retires. From the year after its owner retires, an item uses its `drawdownAnnualReturnRateBasisPoints` if set.
+- Years up to the first retirement have phase `saving`.
+- Years between the first and the last retirement have phase `transition`. Accounts of people still working keep contributing, and the household withdraws `gapAnnualWithdrawalCents` (optional, default `0`) from all items, split the same way as drawdown withdrawals.
+- After the last retirement, the full `annualWithdrawalCents` is withdrawn for `drawdownYears`, with phase `drawdown`.
+- Both withdrawal amounts are in today's dollars and grow by `annualWithdrawalInflationRateBasisPoints` every year from year 1.
+- The response adds `transitionYears`: `years` = `savingYears` (to the first retirement) + `transitionYears` + `drawdownYears`.
+- With `people`, the request's `savingYears` must be `0` and every `ownerId` must match a person. Without `people`, `ownerId` is ignored (every item counts as joint), and `gapAnnualWithdrawalCents` isn't allowed. If everyone retires in the same year, the result matches the household `savingYears` projection.
 
 ## Public repo boundaries
 
