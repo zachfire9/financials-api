@@ -1040,3 +1040,23 @@ func TestFinancialItemsRejectInvalidWithdrawalPriority(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
 	}
 }
+
+func TestStatelessProjectionsAcceptExpensesAndMortgage(t *testing.T) {
+	handler := NewHandlerWithRepositoryAndConfig(financialitems.NewInMemoryRepository(), HandlerConfig{StatelessProjectionsOnly: true})
+	recorder := serveJSON(t, handler, http.MethodPost, "/projections",
+		`{"savingYears":1,"drawdownYears":2,
+		  "expenses":[{"id":"food","name":"Food","annualAmountCents":1000},{"id":"travel","name":"Travel","annualAmountCents":500,"years":1}],
+		  "mortgage":{"balanceCents":1200000,"annualRateBasisPoints":0,"monthlyPaymentCents":100000},
+		  "items":[{"id":"a","name":"Savings","amountCents":10000000,"currency":"USD","annualReturnRateBasisPoints":0,"annualContributionCents":0,"sortOrder":1}]}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var projection projections.Projection
+	decodeJSON(t, recorder, &projection)
+	if projection.Mortgage == nil || projection.Mortgage.PayoffYear != 1 {
+		t.Fatalf("expected the mortgage to be paid off in year 1, got %+v", projection.Mortgage)
+	}
+	if got := projection.Spending[1]; got.ExpensesCents != 1500 || got.MortgagePaymentCents != 0 {
+		t.Fatalf("year 2: expected 1500 of expenses and no mortgage, got %+v", got)
+	}
+}

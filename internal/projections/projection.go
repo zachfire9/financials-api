@@ -22,6 +22,13 @@ var currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 type Phase string
 
+// Limits for itemized expenses and mortgages.
+const (
+	maximumExpenses                = 30
+	maximumExpenseNameLength       = 60
+	maximumMortgageRateBasisPoints = 10000
+)
+
 // Withdrawal priority groups for ItemInput.WithdrawalPriority.
 const (
 	withdrawalPriorityFirst  = 1
@@ -75,7 +82,36 @@ type Request struct {
 	AnnualWithdrawalInflationRateBasisPoints int           `json:"annualWithdrawalInflationRateBasisPoints"`
 	People                                   []PersonInput `json:"people,omitempty"`
 	GapAnnualWithdrawalCents                 int64         `json:"gapAnnualWithdrawalCents,omitempty"`
-	Items                                    []ItemInput   `json:"items"`
+	// Expenses itemizes the drawdown-year withdrawal instead of
+	// AnnualWithdrawalCents (which must then be 0). Each year's withdrawal is
+	// the sum of the expenses active that year.
+	Expenses []ExpenseInput `json:"expenses,omitempty"`
+	// Mortgage is amortized monthly over the whole projection. Its payments are
+	// added to withdrawals in drawdown years; before then they're assumed to
+	// come from salary, so they only show in the mortgage results.
+	Mortgage *MortgageInput `json:"mortgage,omitempty"`
+	Items    []ItemInput    `json:"items"`
+}
+
+// ExpenseInput is one category of retirement spending, in today's dollars.
+type ExpenseInput struct {
+	ID                string `json:"id,omitempty"`
+	Name              string `json:"name"`
+	AnnualAmountCents int64  `json:"annualAmountCents"`
+	// InflationRateBasisPoints overrides the request's inflation rate for this
+	// expense (for example, faster-rising healthcare costs).
+	InflationRateBasisPoints *int `json:"inflationRateBasisPoints,omitempty"`
+	// Years limits the expense to the first Years years of drawdown; 0 means
+	// every drawdown year.
+	Years int `json:"years,omitempty"`
+}
+
+// MortgageInput is a fixed-rate mortgage: the balance still owed today, its
+// APR and the monthly principal-and-interest payment.
+type MortgageInput struct {
+	BalanceCents          int64 `json:"balanceCents"`
+	AnnualRateBasisPoints int   `json:"annualRateBasisPoints"`
+	MonthlyPaymentCents   int64 `json:"monthlyPaymentCents"`
 }
 
 // PersonInput is one member of the household and the number of years until
@@ -110,18 +146,50 @@ type ItemInput struct {
 	SortOrder                    int  `json:"sortOrder"`
 }
 
+// MortgageProjection is the mortgage's amortization by year. PayoffYear is
+// the year the balance reaches 0, or 0 if it isn't paid off within the
+// projection.
+type MortgageProjection struct {
+	PayoffYear int            `json:"payoffYear"`
+	Years      []MortgageYear `json:"years"`
+}
+
+// MortgageYear is one year of the mortgage. BalanceCents is owed at the end
+// of the year; PaidFromSavings is true for drawdown years, when the payment
+// is part of that year's withdrawal.
+type MortgageYear struct {
+	Year            int   `json:"year"`
+	BalanceCents    int64 `json:"balanceCents"`
+	PaymentCents    int64 `json:"paymentCents"`
+	InterestCents   int64 `json:"interestCents"`
+	PaidFromSavings bool  `json:"paidFromSavings"`
+}
+
+// YearlySpending is what the plan meant to withdraw in a year, split into
+// itemized expenses (or the single annual/gap withdrawal) and mortgage
+// payments. It's planned spending: shortfalls show in the yearly balances.
+type YearlySpending struct {
+	Year                 int   `json:"year"`
+	ExpensesCents        int64 `json:"expensesCents"`
+	MortgagePaymentCents int64 `json:"mortgagePaymentCents"`
+}
+
 // Projection is the deterministic whole-year projection result.
 //
 // Years = SavingYears + TransitionYears + DrawdownYears. TransitionYears is
 // only non-zero when people retire in different years.
 type Projection struct {
-	Years           int             `json:"years"`
-	SavingYears     int             `json:"savingYears"`
-	TransitionYears int             `json:"transitionYears"`
-	DrawdownYears   int             `json:"drawdownYears"`
-	Currency        string          `json:"currency"`
-	Items           []ProjectedItem `json:"items"`
-	Totals          []YearlyBalance `json:"totals"`
+	Years           int    `json:"years"`
+	SavingYears     int    `json:"savingYears"`
+	TransitionYears int    `json:"transitionYears"`
+	DrawdownYears   int    `json:"drawdownYears"`
+	Currency        string `json:"currency"`
+	// Mortgage is set when the request has a mortgage.
+	Mortgage *MortgageProjection `json:"mortgage,omitempty"`
+	// Spending is set for phase projections, one entry per year from year 1.
+	Spending []YearlySpending `json:"spending,omitempty"`
+	Items    []ProjectedItem  `json:"items"`
+	Totals   []YearlyBalance  `json:"totals"`
 }
 
 // ProjectedItem contains the per-year projection series for one input item.
@@ -243,6 +311,21 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 	// y-1 years of inflation, compounded (and rounded) one year at a time.
 	annualWithdrawalCents := request.AnnualWithdrawalCents
 	gapWithdrawalCents := request.GapAnnualWithdrawalCents
+	expenseCents := make([]int64, len(request.Expenses))
+	for index, expense := range request.Expenses {
+		expenseCents[index] = expense.AnnualAmountCents
+	}
+	mortgageYears := amortizeMortgage(request.Mortgage, totalYears)
+	if request.Mortgage != nil {
+		projection.Mortgage = &MortgageProjection{Years: mortgageYears}
+		for _, mortgageYear := range mortgageYears {
+			if mortgageYear.BalanceCents == 0 && mortgageYear.Year > 0 {
+				projection.Mortgage.PayoffYear = mortgageYear.Year
+				break
+			}
+		}
+	}
+	projection.Spending = make([]YearlySpending, 0, totalYears)
 
 	for year := 1; year <= totalYears; year++ {
 		phase := phaseForYear(year, firstRetirement, lastRetirement)
@@ -268,11 +351,23 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 		for index := range items {
 			available[index] = year > availableAfterYearByItem[index]
 		}
-		if phase != PhaseSaving {
-			withdrawalCents := annualWithdrawalCents
-			if phase == PhaseTransition {
-				withdrawalCents = gapWithdrawalCents
+		spending := YearlySpending{Year: year}
+		if phase == PhaseTransition {
+			spending.ExpensesCents = gapWithdrawalCents
+		}
+		if phase == PhaseDrawdown {
+			spending.ExpensesCents = annualWithdrawalCents
+			if len(request.Expenses) > 0 {
+				spending.ExpensesCents = activeExpensesCents(request.Expenses, expenseCents, year-lastRetirement)
 			}
+			if request.Mortgage != nil {
+				spending.MortgagePaymentCents = mortgageYears[year].PaymentCents
+				projection.Mortgage.Years[year].PaidFromSavings = spending.MortgagePaymentCents > 0
+			}
+		}
+		projection.Spending = append(projection.Spending, spending)
+		if phase != PhaseSaving {
+			withdrawalCents := spending.ExpensesCents + spending.MortgagePaymentCents
 			for index := range availableBalances {
 				if availableBalances[index] < 0 {
 					availableBalances[index] = 0
@@ -305,6 +400,13 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 
 		annualWithdrawalCents += roundBasisPointGrowth(annualWithdrawalCents, request.AnnualWithdrawalInflationRateBasisPoints)
 		gapWithdrawalCents += roundBasisPointGrowth(gapWithdrawalCents, request.AnnualWithdrawalInflationRateBasisPoints)
+		for index, expense := range request.Expenses {
+			rate := request.AnnualWithdrawalInflationRateBasisPoints
+			if expense.InflationRateBasisPoints != nil {
+				rate = *expense.InflationRateBasisPoints
+			}
+			expenseCents[index] += roundBasisPointGrowth(expenseCents[index], rate)
+		}
 	}
 
 	for index, item := range items {
@@ -314,6 +416,48 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 	}
 
 	return projection
+}
+
+// activeExpensesCents totals the expenses that apply in a drawdown year
+// (1 = the first year after the last retirement), using their inflated amounts.
+func activeExpensesCents(expenses []ExpenseInput, inflatedCents []int64, drawdownYear int) int64 {
+	var total int64
+	for index, expense := range expenses {
+		if expense.Years == 0 || drawdownYear <= expense.Years {
+			total += inflatedCents[index]
+		}
+	}
+	return total
+}
+
+// amortizeMortgage runs a fixed-rate mortgage month by month and returns one
+// entry per year, from year 0 (today's balance) to totalYears. Monthly
+// interest is the balance times APR/12, rounded to the cent; the last
+// payment only covers what's left.
+func amortizeMortgage(mortgage *MortgageInput, totalYears int) []MortgageYear {
+	if mortgage == nil {
+		return nil
+	}
+	years := make([]MortgageYear, totalYears+1)
+	balance := mortgage.BalanceCents
+	years[0] = MortgageYear{Year: 0, BalanceCents: balance}
+	for year := 1; year <= totalYears; year++ {
+		entry := MortgageYear{Year: year}
+		for month := 0; month < 12 && balance > 0; month++ {
+			interest := monthlyInterestCents(balance, mortgage.AnnualRateBasisPoints)
+			payment := min(mortgage.MonthlyPaymentCents, balance+interest)
+			balance = balance + interest - payment
+			entry.PaymentCents += payment
+			entry.InterestCents += interest
+		}
+		entry.BalanceCents = balance
+		years[year] = entry
+	}
+	return years
+}
+
+func monthlyInterestCents(balanceCents int64, annualRateBasisPoints int) int64 {
+	return (balanceCents*int64(annualRateBasisPoints) + 60000) / 120000
 }
 
 // retirementYears returns the years of the first and the last retirement.
@@ -459,9 +603,11 @@ func validate(request Request) error {
 		if request.AnnualWithdrawalCents < 0 {
 			problems = append(problems, "annualWithdrawalCents must be greater than or equal to 0")
 		}
-		if request.DrawdownYears > 0 && request.AnnualWithdrawalCents <= 0 {
+		if request.DrawdownYears > 0 && request.AnnualWithdrawalCents <= 0 && len(request.Expenses) == 0 {
 			problems = append(problems, "annualWithdrawalCents is required when drawdownYears is greater than 0")
 		}
+		problems = append(problems, expenseProblems(request)...)
+		problems = append(problems, mortgageProblems(request.Mortgage)...)
 		if request.AnnualWithdrawalInflationRateBasisPoints < 0 || request.AnnualWithdrawalInflationRateBasisPoints > maximumAnnualReturnRateBasisPoints {
 			problems = append(problems, fmt.Sprintf("annualWithdrawalInflationRateBasisPoints must be between 0 and %d", maximumAnnualReturnRateBasisPoints))
 		}
@@ -476,14 +622,14 @@ func validate(request Request) error {
 	}
 	var currency string
 	for index, item := range request.Items {
-		// Without people, owners are ignored and every item counts as joint, so
-		// saved items keep projecting when the household plan is turned off.
 		if item.WithdrawalPriority < 0 || item.WithdrawalPriority > withdrawalPriorityLast {
 			problems = append(problems, fmt.Sprintf("items[%d].withdrawalPriority must be 1 (first), 2 (normal) or 3 (last)", index))
 		}
 		if item.WithdrawalAvailableAfterYear != nil && (*item.WithdrawalAvailableAfterYear < 0 || *item.WithdrawalAvailableAfterYear > 2*maximumYears) {
 			problems = append(problems, fmt.Sprintf("items[%d].withdrawalAvailableAfterYear must be between 0 and %d", index, 2*maximumYears))
 		}
+		// Without people, owners are ignored and every item counts as joint, so
+		// saved items keep projecting when the household plan is turned off.
 		if len(request.People) > 0 && item.OwnerID != "" && !personIDs[item.OwnerID] {
 			problems = append(problems, fmt.Sprintf("items[%d].ownerId must match a person id", index))
 		}
@@ -523,6 +669,54 @@ func validate(request Request) error {
 		return ValidationError{Problems: problems}
 	}
 	return nil
+}
+
+func expenseProblems(request Request) []string {
+	if len(request.Expenses) == 0 {
+		return nil
+	}
+	var problems []string
+	if request.AnnualWithdrawalCents != 0 {
+		problems = append(problems, "annualWithdrawalCents must be 0 when expenses are provided")
+	}
+	if len(request.Expenses) > maximumExpenses {
+		problems = append(problems, fmt.Sprintf("expenses can include at most %d entries", maximumExpenses))
+	}
+	for index, expense := range request.Expenses {
+		name := strings.TrimSpace(expense.Name)
+		if name == "" || len(name) > maximumExpenseNameLength {
+			problems = append(problems, fmt.Sprintf("expenses[%d].name is required and must be at most %d characters", index, maximumExpenseNameLength))
+		}
+		if expense.AnnualAmountCents < 0 {
+			problems = append(problems, fmt.Sprintf("expenses[%d].annualAmountCents must be greater than or equal to 0", index))
+		}
+		if expense.InflationRateBasisPoints != nil && (*expense.InflationRateBasisPoints < 0 || *expense.InflationRateBasisPoints > maximumAnnualReturnRateBasisPoints) {
+			problems = append(problems, fmt.Sprintf("expenses[%d].inflationRateBasisPoints must be between 0 and %d", index, maximumAnnualReturnRateBasisPoints))
+		}
+		if expense.Years < 0 || expense.Years > maximumYears {
+			problems = append(problems, fmt.Sprintf("expenses[%d].years must be between 0 and %d", index, maximumYears))
+		}
+	}
+	return problems
+}
+
+func mortgageProblems(mortgage *MortgageInput) []string {
+	if mortgage == nil {
+		return nil
+	}
+	var problems []string
+	if mortgage.BalanceCents <= 0 {
+		problems = append(problems, "mortgage.balanceCents must be greater than 0")
+	}
+	if mortgage.AnnualRateBasisPoints < 0 || mortgage.AnnualRateBasisPoints > maximumMortgageRateBasisPoints {
+		problems = append(problems, fmt.Sprintf("mortgage.annualRateBasisPoints must be between 0 and %d", maximumMortgageRateBasisPoints))
+	}
+	if mortgage.MonthlyPaymentCents <= 0 {
+		problems = append(problems, "mortgage.monthlyPaymentCents must be greater than 0")
+	} else if mortgage.BalanceCents > 0 && mortgage.MonthlyPaymentCents <= monthlyInterestCents(mortgage.BalanceCents, mortgage.AnnualRateBasisPoints) {
+		problems = append(problems, fmt.Sprintf("mortgage.monthlyPaymentCents must be more than the first month's interest (%d)", monthlyInterestCents(mortgage.BalanceCents, mortgage.AnnualRateBasisPoints)))
+	}
+	return problems
 }
 
 func peopleProblems(request Request) []string {
@@ -622,7 +816,8 @@ func phaseForYear(year int, firstRetirement int, lastRetirement int) Phase {
 
 func usesPhaseProjection(request Request) bool {
 	return request.SavingYears != 0 || request.DrawdownYears != 0 || request.AnnualWithdrawalCents != 0 ||
-		request.AnnualWithdrawalInflationRateBasisPoints != 0 || len(request.People) > 0 || request.GapAnnualWithdrawalCents != 0
+		request.AnnualWithdrawalInflationRateBasisPoints != 0 || len(request.People) > 0 || request.GapAnnualWithdrawalCents != 0 ||
+		len(request.Expenses) > 0 || request.Mortgage != nil
 }
 
 // fundWithdrawal splits one drawdown year's withdrawal across items.
