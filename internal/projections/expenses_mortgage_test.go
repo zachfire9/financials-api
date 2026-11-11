@@ -43,6 +43,54 @@ func TestCalculateItemizedExpenses(t *testing.T) {
 	}
 }
 
+// No inflation, five drawdown years:
+//
+//	                    year 1  year 2  year 3  year 4  year 5
+//	living (all)         100     100     100     100     100
+//	insurance (1-2)       50      50       -       -       -
+//	care (from 4)          -       -       -     200     200
+//	travel (years: 3)     10      10      10       -       -   (older "years" field)
+func TestCalculateExpensesWithinYearRanges(t *testing.T) {
+	projection, err := Calculate(Request{
+		DrawdownYears: 5,
+		Expenses: []ExpenseInput{
+			{Name: "Living", AnnualAmountCents: 100},
+			{Name: "Health insurance", AnnualAmountCents: 50, ToYear: 2},
+			{Name: "Long-term care", AnnualAmountCents: 200, FromYear: 4},
+			{Name: "Travel", AnnualAmountCents: 10, Years: 3},
+		},
+		Items: []ItemInput{{ID: "a", Name: "Savings", AmountCents: 100000, Currency: "USD", SortOrder: 1}},
+	})
+	if err != nil {
+		t.Fatalf("expected projection to calculate, got %v", err)
+	}
+	got := make([]int64, len(projection.Spending))
+	for index, spending := range projection.Spending {
+		got[index] = spending.ExpensesCents
+	}
+	if want := []int64{160, 160, 110, 300, 300}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected expenses %v, got %v", want, got)
+	}
+}
+
+// An expense that starts later is still in today's dollars: with 10%
+// inflation, $100 starting in drawdown year 3 (projection year 3) has grown
+// for two years by then.
+func TestCalculateLaterExpensesKeepGrowingWithInflationBeforeTheyStart(t *testing.T) {
+	projection, err := Calculate(Request{
+		DrawdownYears:                            3,
+		AnnualWithdrawalInflationRateBasisPoints: 1000,
+		Expenses:                                 []ExpenseInput{{Name: "Care", AnnualAmountCents: 10000, FromYear: 3}},
+		Items:                                    []ItemInput{{ID: "a", Name: "Savings", AmountCents: 100000, Currency: "USD", SortOrder: 1}},
+	})
+	if err != nil {
+		t.Fatalf("expected projection to calculate, got %v", err)
+	}
+	if got := projection.Spending[2].ExpensesCents; got != 12100 || projection.Spending[1].ExpensesCents != 0 {
+		t.Fatalf("expected nothing until year 3, then 12100, got %+v", projection.Spending)
+	}
+}
+
 func TestCalculateExpensesStartAfterTheLastRetirement(t *testing.T) {
 	projection, err := Calculate(Request{
 		People:                   []PersonInput{{ID: "alex", Name: "Alex", SavingYears: 1}, {ID: "sam", Name: "Sam", SavingYears: 2}},
@@ -164,6 +212,9 @@ func TestCalculateRejectsInvalidExpensesAndMortgages(t *testing.T) {
 		{"negative expense", Request{DrawdownYears: 1, Expenses: []ExpenseInput{{Name: "Food", AnnualAmountCents: -1}}, Items: []ItemInput{item}}, "expenses[0].annualAmountCents must be greater than or equal to 0"},
 		{"expense years too long", Request{DrawdownYears: 1, Expenses: []ExpenseInput{{Name: "Food", AnnualAmountCents: 1, Years: 76}}, Items: []ItemInput{item}}, "expenses[0].years must be between 0 and 75"},
 		{"expense inflation negative", Request{DrawdownYears: 1, Expenses: []ExpenseInput{{Name: "Food", AnnualAmountCents: 1, InflationRateBasisPoints: intPointer(-1)}}, Items: []ItemInput{item}}, "expenses[0].inflationRateBasisPoints"},
+		{"range backwards", Request{DrawdownYears: 1, Expenses: []ExpenseInput{{Name: "Food", AnnualAmountCents: 1, FromYear: 5, ToYear: 3}}, Items: []ItemInput{item}}, "expenses[0].fromYear must not be after toYear"},
+		{"toYear and years", Request{DrawdownYears: 1, Expenses: []ExpenseInput{{Name: "Food", AnnualAmountCents: 1, ToYear: 3, Years: 3}}, Items: []ItemInput{item}}, "expenses[0] can set toYear or years, not both"},
+		{"fromYear too late", Request{DrawdownYears: 1, Expenses: []ExpenseInput{{Name: "Food", AnnualAmountCents: 1, FromYear: 76}}, Items: []ItemInput{item}}, "expenses[0].fromYear must be between 0 and 75"},
 		{"mortgage without balance", Request{SavingYears: 1, Mortgage: &MortgageInput{MonthlyPaymentCents: 100}, Items: []ItemInput{item}}, "mortgage.balanceCents must be greater than 0"},
 		{"mortgage rate too high", Request{SavingYears: 1, Mortgage: &MortgageInput{BalanceCents: 1000, AnnualRateBasisPoints: 10001, MonthlyPaymentCents: 1000}, Items: []ItemInput{item}}, "mortgage.annualRateBasisPoints must be between 0 and 10000"},
 		{"payment below interest", Request{SavingYears: 1, Mortgage: &MortgageInput{BalanceCents: 30000000, AnnualRateBasisPoints: 600, MonthlyPaymentCents: 150000}, Items: []ItemInput{item}}, "mortgage.monthlyPaymentCents must be more than the first month's interest (150000)"},
