@@ -186,6 +186,17 @@ type YearlySpending struct {
 	Year                 int   `json:"year"`
 	ExpensesCents        int64 `json:"expensesCents"`
 	MortgagePaymentCents int64 `json:"mortgagePaymentCents"`
+	// Expenses breaks ExpensesCents down by itemized expense, in request
+	// order, listing only the expenses that apply that year. Amounts include
+	// each expense's inflation. Empty when expenses aren't itemized.
+	Expenses []ExpenseAmount `json:"expenses,omitempty"`
+}
+
+// ExpenseAmount is one itemized expense's planned spending in a year.
+type ExpenseAmount struct {
+	ID          string `json:"id,omitempty"`
+	Name        string `json:"name"`
+	AmountCents int64  `json:"amountCents"`
 }
 
 // Projection is the deterministic whole-year projection result.
@@ -372,7 +383,7 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 		if phase == PhaseDrawdown {
 			spending.ExpensesCents = annualWithdrawalCents
 			if len(request.Expenses) > 0 {
-				spending.ExpensesCents = activeExpensesCents(request.Expenses, expenseCents, year-lastRetirement)
+				spending.Expenses, spending.ExpensesCents = activeExpenses(request.Expenses, expenseCents, year-lastRetirement)
 			}
 			if request.Mortgage != nil {
 				spending.MortgagePaymentCents = mortgageYears[year].PaymentCents
@@ -432,17 +443,20 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 	return projection
 }
 
-// activeExpensesCents totals the expenses that apply in a drawdown year
-// (1 = the first year after the last retirement), using their inflated amounts.
-func activeExpensesCents(expenses []ExpenseInput, inflatedCents []int64, drawdownYear int) int64 {
+// activeExpenses lists the expenses that apply in a drawdown year (1 = the
+// first year after the last retirement) with their inflated amounts, and
+// returns their total.
+func activeExpenses(expenses []ExpenseInput, inflatedCents []int64, drawdownYear int) ([]ExpenseAmount, int64) {
+	var active []ExpenseAmount
 	var total int64
 	for index, expense := range expenses {
 		last := expense.lastDrawdownYear()
 		if drawdownYear >= expense.FromYear && (last == 0 || drawdownYear <= last) {
+			active = append(active, ExpenseAmount{ID: expense.ID, Name: expense.Name, AmountCents: inflatedCents[index]})
 			total += inflatedCents[index]
 		}
 	}
-	return total
+	return active, total
 }
 
 // amortizeMortgage runs a fixed-rate mortgage month by month and returns one
