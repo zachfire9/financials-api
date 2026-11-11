@@ -6,8 +6,15 @@ import (
 	"testing"
 )
 
+// spendingOf returns the yearly spending totals without the per-expense
+// breakdown, which TestCalculateReportsEachExpensePerYear checks.
 func spendingOf(projection Projection) []YearlySpending {
-	return projection.Spending
+	totals := make([]YearlySpending, len(projection.Spending))
+	for index, spending := range projection.Spending {
+		spending.Expenses = nil
+		totals[index] = spending
+	}
+	return totals
 }
 
 // One saving year, then three drawdown years with 10% inflation:
@@ -39,6 +46,44 @@ func TestCalculateItemizedExpenses(t *testing.T) {
 	for year, wantWithdrawal := range []int64{0, 0, 2850, 3255, 3059} {
 		if got := projection.Totals[year].WithdrawalCents; got != wantWithdrawal {
 			t.Fatalf("year %d: expected withdrawal %d, got %d", year, wantWithdrawal, got)
+		}
+	}
+}
+
+// The same plan as TestCalculateItemizedExpenses, broken down by expense:
+// travel drops out after its two years.
+func TestCalculateReportsEachExpensePerYear(t *testing.T) {
+	projection, err := Calculate(Request{
+		SavingYears:                              1,
+		DrawdownYears:                            3,
+		AnnualWithdrawalInflationRateBasisPoints: 1000,
+		Expenses: []ExpenseInput{
+			{ID: "living", Name: "Living", AnnualAmountCents: 1000},
+			{ID: "health", Name: "Healthcare", AnnualAmountCents: 1000, InflationRateBasisPoints: intPointer(2000)},
+			{ID: "travel", Name: "Travel", AnnualAmountCents: 500, ToYear: 2},
+		},
+		Items: []ItemInput{{ID: "a", Name: "Savings", AmountCents: 1000000, Currency: "USD", SortOrder: 1}},
+	})
+	if err != nil {
+		t.Fatalf("expected projection to calculate, got %v", err)
+	}
+
+	want := [][]ExpenseAmount{
+		nil,
+		{{ID: "living", Name: "Living", AmountCents: 1100}, {ID: "health", Name: "Healthcare", AmountCents: 1200}, {ID: "travel", Name: "Travel", AmountCents: 550}},
+		{{ID: "living", Name: "Living", AmountCents: 1210}, {ID: "health", Name: "Healthcare", AmountCents: 1440}, {ID: "travel", Name: "Travel", AmountCents: 605}},
+		{{ID: "living", Name: "Living", AmountCents: 1331}, {ID: "health", Name: "Healthcare", AmountCents: 1728}},
+	}
+	for index, spending := range projection.Spending {
+		if !reflect.DeepEqual(spending.Expenses, want[index]) {
+			t.Fatalf("year %d: expected %+v, got %+v", spending.Year, want[index], spending.Expenses)
+		}
+		var sum int64
+		for _, expense := range spending.Expenses {
+			sum += expense.AmountCents
+		}
+		if sum != spending.ExpensesCents {
+			t.Fatalf("year %d: breakdown sums to %d, total is %d", spending.Year, sum, spending.ExpensesCents)
 		}
 	}
 }
@@ -103,7 +148,7 @@ func TestCalculateExpensesStartAfterTheLastRetirement(t *testing.T) {
 		t.Fatalf("expected projection to calculate, got %v", err)
 	}
 	want := []YearlySpending{{Year: 1}, {Year: 2, ExpensesCents: 300}, {Year: 3, ExpensesCents: 1000}, {Year: 4}}
-	if !reflect.DeepEqual(projection.Spending, want) {
+	if !reflect.DeepEqual(spendingOf(projection), want) {
 		t.Fatalf("expected the gap amount in the transition year and travel only in the first drawdown year, got %+v", projection.Spending)
 	}
 }
@@ -170,7 +215,7 @@ func TestCalculateAddsMortgagePaymentsToDrawdownWithdrawals(t *testing.T) {
 		10: {Year: 10, ExpensesCents: 500000},
 	}
 	for year, want := range wantSpending {
-		if got := projection.Spending[year-1]; got != want {
+		if got := spendingOf(projection)[year-1]; !reflect.DeepEqual(got, want) {
 			t.Fatalf("year %d spending: expected %+v, got %+v", year, want, got)
 		}
 	}

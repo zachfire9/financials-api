@@ -404,7 +404,7 @@ The response adds:
 - `mortgage.payoffYear`: the year the balance reaches 0, or `0` if it isn't paid off within the projection.
 - `mortgage.years`: one entry per year from year 0 with `balanceCents` (owed at year end), `paymentCents`, `interestCents` and `paidFromSavings`.
 
-Every phase projection also returns `spending`: one entry per year from year 1, with the planned `expensesCents` (expenses, or the annual or gap withdrawal) and `mortgagePaymentCents` taken from savings that year.
+Every phase projection also returns `spending`: one entry per year from year 1, with the planned `expensesCents` (expenses, or the annual or gap withdrawal) and `mortgagePaymentCents` taken from savings that year. When expenses are itemized, drawdown years also list `expenses`: each expense that applies that year as `{id, name, amountCents}`, in request order, with its inflation included. The amounts add up to `expensesCents`.
 
 ## Public repo boundaries
 
