@@ -383,6 +383,29 @@ If the available items can't cover a withdrawal, the rest is reported as `unfund
 
 Requests that set neither field and have no `people` project exactly as before. With `people`, accounts of someone still working are no longer withdrawn from during transition years unless they set `withdrawalAvailableAfterYear: 0`.
 
+### Itemized expenses
+
+Instead of a single `annualWithdrawalCents`, a request can list `expenses`. Each drawdown year's withdrawal is the total of the expenses that apply that year:
+
+- `name` and `annualAmountCents` (today's dollars) are required; `id` is optional.
+- `inflationRateBasisPoints` (optional) overrides the request's inflation rate for that expense, for example faster-rising healthcare.
+- `years` (optional) limits the expense to the first `years` drawdown years, for example travel early in retirement. `0` or omitted means every drawdown year.
+
+Each expense grows with its inflation rate every year from year 1, like `annualWithdrawalCents`. With `expenses`, `annualWithdrawalCents` must be `0`. Expenses apply in drawdown years only; transition years still use `gapAnnualWithdrawalCents`.
+
+### Mortgage
+
+`mortgage` takes `balanceCents` (owed today), `annualRateBasisPoints` (the APR) and `monthlyPaymentCents` (principal and interest; put property tax and insurance in expenses). The mortgage is amortized month by month: each month's interest is the balance times APR/12, rounded to the cent, and the last payment covers only what's left. The payment must be more than the first month's interest.
+
+Payments made in drawdown years are added to that year's withdrawal. Before then they're assumed to come from salary, so they only show in the mortgage results.
+
+The response adds:
+
+- `mortgage.payoffYear`: the year the balance reaches 0, or `0` if it isn't paid off within the projection.
+- `mortgage.years`: one entry per year from year 0 with `balanceCents` (owed at year end), `paymentCents`, `interestCents` and `paidFromSavings`.
+
+Every phase projection also returns `spending`: one entry per year from year 1, with the planned `expensesCents` (expenses, or the annual or gap withdrawal) and `mortgagePaymentCents` taken from savings that year.
+
 ## Public repo boundaries
 
 This repo is public, so it must not contain:
