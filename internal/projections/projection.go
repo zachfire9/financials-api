@@ -101,9 +101,23 @@ type ExpenseInput struct {
 	// InflationRateBasisPoints overrides the request's inflation rate for this
 	// expense (for example, faster-rising healthcare costs).
 	InflationRateBasisPoints *int `json:"inflationRateBasisPoints,omitempty"`
-	// Years limits the expense to the first Years years of drawdown; 0 means
-	// every drawdown year.
+	// FromYear and ToYear limit the expense to a range of drawdown years
+	// (1 = the first year after the last retirement), inclusive. 0 leaves that
+	// end open: from the first year, or until the end of the projection.
+	FromYear int `json:"fromYear,omitempty"`
+	ToYear   int `json:"toYear,omitempty"`
+	// Years is the older way to set ToYear ("the first N drawdown years"),
+	// still accepted so earlier clients keep working. Use ToYear instead.
 	Years int `json:"years,omitempty"`
+}
+
+// lastDrawdownYear is the expense's ToYear, or Years for older requests; 0
+// means it runs to the end.
+func (expense ExpenseInput) lastDrawdownYear() int {
+	if expense.ToYear != 0 {
+		return expense.ToYear
+	}
+	return expense.Years
 }
 
 // MortgageInput is a fixed-rate mortgage: the balance still owed today, its
@@ -423,7 +437,8 @@ func calculatePhaseProjection(request Request, items []ItemInput) Projection {
 func activeExpensesCents(expenses []ExpenseInput, inflatedCents []int64, drawdownYear int) int64 {
 	var total int64
 	for index, expense := range expenses {
-		if expense.Years == 0 || drawdownYear <= expense.Years {
+		last := expense.lastDrawdownYear()
+		if drawdownYear >= expense.FromYear && (last == 0 || drawdownYear <= last) {
 			total += inflatedCents[index]
 		}
 	}
@@ -695,6 +710,18 @@ func expenseProblems(request Request) []string {
 		}
 		if expense.Years < 0 || expense.Years > maximumYears {
 			problems = append(problems, fmt.Sprintf("expenses[%d].years must be between 0 and %d", index, maximumYears))
+		}
+		if expense.Years != 0 && expense.ToYear != 0 {
+			problems = append(problems, fmt.Sprintf("expenses[%d] can set toYear or years, not both", index))
+		}
+		if expense.FromYear < 0 || expense.FromYear > maximumYears {
+			problems = append(problems, fmt.Sprintf("expenses[%d].fromYear must be between 0 and %d", index, maximumYears))
+		}
+		if expense.ToYear < 0 || expense.ToYear > maximumYears {
+			problems = append(problems, fmt.Sprintf("expenses[%d].toYear must be between 0 and %d", index, maximumYears))
+		}
+		if last := expense.lastDrawdownYear(); last != 0 && expense.FromYear > last {
+			problems = append(problems, fmt.Sprintf("expenses[%d].fromYear must not be after toYear", index))
 		}
 	}
 	return problems

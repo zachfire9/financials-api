@@ -389,9 +389,9 @@ Instead of a single `annualWithdrawalCents`, a request can list `expenses`. Each
 
 - `name` and `annualAmountCents` (today's dollars) are required; `id` is optional.
 - `inflationRateBasisPoints` (optional) overrides the request's inflation rate for that expense, for example faster-rising healthcare.
-- `years` (optional) limits the expense to the first `years` drawdown years, for example travel early in retirement. `0` or omitted means every drawdown year.
+- `fromYear` and `toYear` (optional) limit the expense to a range of drawdown years, inclusive, where `1` is the first year after the last retirement: for example `toYear: 4` for health insurance before Medicare, `fromYear: 25` for long-term care. `0` or omitted leaves that end open. The older `years` field still works as `toYear`.
 
-Each expense grows with its inflation rate every year from year 1, like `annualWithdrawalCents`. With `expenses`, `annualWithdrawalCents` must be `0`. Expenses apply in drawdown years only; transition years still use `gapAnnualWithdrawalCents`.
+Each expense grows with its inflation rate every year from year 1, like `annualWithdrawalCents`, including the years before its range starts, so a later expense is still entered in today's dollars. With `expenses`, `annualWithdrawalCents` must be `0`. Expenses apply in drawdown years only; transition years still use `gapAnnualWithdrawalCents`.
 
 ### Mortgage
 
